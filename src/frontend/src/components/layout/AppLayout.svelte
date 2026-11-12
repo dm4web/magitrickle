@@ -165,7 +165,7 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 0.8rem;
+    gap: 1.3rem;
   }
 
   .app-brand {
@@ -180,14 +180,14 @@
 
   .brand-text {
     display: inline-flex;
-    align-items: baseline;
-    gap: 0.15rem;
+    align-items: center;
+    gap: 0.65rem;
   }
 
   .brand-meta {
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.4rem;
     font-size: 0.7rem;
     font-weight: 500;
     letter-spacing: 0;

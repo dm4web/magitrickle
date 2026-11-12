@@ -15,6 +15,7 @@ test.describe("Header Settings", () => {
     const version = page.locator(".app-brand .brand-version");
     await expect(version).toBeVisible();
     await expect(version).not.toBeEmpty();
+    await expect(page.locator(".header-settings .version-text")).toHaveCount(0);
   });
 
   test("should rotate locale", async ({ page }) => {

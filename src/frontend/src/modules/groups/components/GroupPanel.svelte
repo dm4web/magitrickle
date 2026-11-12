@@ -414,21 +414,23 @@
                   ? t("Blocked")
                   : (liveRouting?.active_interface ?? "…")}
             </span>
+          {:else}
+            <span class="route-status route-placeholder" aria-hidden="true"></span>
           {/if}
-          <button
-            type="button"
-            class="failover-config-trigger"
-            class:active={showFailoverSettings}
-            aria-label={t("Configure backup interfaces")}
-            aria-expanded={showFailoverSettings}
-            onclick={() => (showFailoverSettings = !showFailoverSettings)}
-            ><span class="failover-config-icon"><Route size={18} /></span><span
-              class="failover-config-text">{t("Routes")}</span
-            ></button
-          >
-
           <Tooltip value={t(group.enable ? "Disable Group" : "Enable Group")}>
             <Switch class="enable-group" bind:checked={group.enable} />
+          </Tooltip>
+
+          <Tooltip value={t("Configure interfaces")}>
+            <Button
+              small
+              class="failover-action"
+              aria-label={t("Configure interfaces")}
+              aria-expanded={showFailoverSettings}
+              onclick={() => (showFailoverSettings = !showFailoverSettings)}
+            >
+              <Route size={20} />
+            </Button>
           </Tooltip>
 
           {#if is_desktop}
@@ -583,26 +585,10 @@
 {/if}
 
 <style>
-  .failover-config-trigger {
-    cursor: pointer;
-    color: var(--text-2);
-    background: var(--bg-medium);
-    padding: 0.38rem 0.55rem;
-    border: 1px solid var(--bg-light-extra);
-    border-radius: 0.5rem;
-    font: inherit;
-    font-size: 0.8rem;
-  }
-  .failover-config-icon {
-    display: none;
-  }
-  .failover-config-text {
-    display: inline;
-  }
-  .failover-config-trigger:hover,
-  .failover-config-trigger.active {
-    color: var(--text);
-    border-color: var(--accent);
+  .group-actions :global(button.failover-action[aria-expanded="true"]) {
+    color: var(--accent);
+    background: var(--bg-dark);
+    border-color: var(--bg-light-extra);
   }
   .route-status {
     color: var(--green);
@@ -615,6 +601,9 @@
   }
   .route-status.route-degraded {
     color: var(--red);
+  }
+  .route-status.route-placeholder {
+    visibility: hidden;
   }
   .group {
     & {
@@ -633,6 +622,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-sizing: border-box;
+      height: 3.3rem;
       padding: 0.5rem;
       border-radius: 0.5rem;
       background-color: var(--bg-light);
@@ -643,7 +634,7 @@
   .group-left {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.2rem;
     flex: 1 1 auto;
     min-width: 0;
   }
@@ -697,7 +688,7 @@
       width: auto;
       min-width: 7ch;
       max-width: 100%;
-      padding: 0.2rem 0.45rem;
+      padding: 0.2rem 0.25rem;
       border: 1px solid transparent;
       border-radius: 0.45rem;
       outline: none;
@@ -740,7 +731,7 @@
     display: flex;
     position: relative;
     align-items: center;
-    margin-left: 0.4rem;
+    margin-left: 0;
     min-width: 0;
     flex: 1 1 auto;
   }
@@ -782,7 +773,7 @@
   }
 
   .group-name-search-overlay {
-    padding: 0.2rem 0.45rem;
+    padding: 0.2rem 0.25rem;
     font: 600 1.3rem/1.25 var(--font);
   }
 
@@ -814,14 +805,45 @@
 
   .group-actions {
     & {
-      display: flex;
+      display: grid;
+      grid-template-columns: 8.4rem 3.2rem 2rem repeat(6, 2.2rem);
       align-items: center;
-      justify-content: center;
-      gap: 0.2rem;
+      justify-content: end;
+      flex: 0 0 auto;
+      gap: 0.3rem;
     }
-    &:global([data-switch-root]) {
-      margin: 0 0.3rem;
-    }
+  }
+
+  .group-actions :global(.select-wrap) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .group-actions :global([data-select-trigger]),
+  .group-actions :global(.selected) {
+    width: 100%;
+  }
+
+  .group-actions :global(.selected-text) {
+    flex: 1 1 auto;
+  }
+
+  .group-actions .route-status {
+    justify-self: center;
+    text-align: center;
+    min-width: 0;
+  }
+
+  .group-actions :global([role="tooltip"] > button:not([data-switch-root])),
+  .group-actions :global([data-collapsible-trigger]) {
+    box-sizing: border-box;
+    width: 2.2rem;
+    height: 2.2rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .group-rules-header {
@@ -906,21 +928,13 @@
     cursor: pointer;
   }
 
-  @media (max-width: 700px) {
-    .failover-config-icon {
-      display: block;
-    }
-    .failover-config-text {
-      display: none;
-    }
-    .failover-config-trigger {
-      padding: 0.35rem;
-    }
+  @media (max-width: 850px) {
     .group-header {
       display: flex;
       flex-direction: column;
       align-items: start;
       justify-content: center;
+      height: auto;
       padding: 0.4rem 0.5rem;
     }
 
@@ -939,12 +953,17 @@
     }
 
     .group-actions {
+      display: flex;
       width: calc(100% - 2rem);
       min-width: 0;
       flex-wrap: wrap;
       justify-content: flex-start;
       gap: 0.25rem;
       margin-left: 2rem;
+    }
+
+    .group-actions .route-placeholder {
+      display: none;
     }
 
     :global(.group-actions > *:nth-child(1)) {

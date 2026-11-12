@@ -62,7 +62,32 @@ test("reorders backups, adds a candidate, changes TCP target and saves settings"
   await page.goto("/");
   const group = page.locator(".group-wrapper").first();
   await expect(group).toBeVisible();
-  await group.getByRole("button", { name: "Настроить резервные интерфейсы" }).click();
+  const actions = group.locator(".group-actions");
+  const routeButton = actions.getByRole("button", { name: "Настроить интерфейсы" });
+  const actionLayout = await actions.evaluate((container) => {
+    const route = container.querySelector<HTMLButtonElement>("button.failover-action");
+    const toggle = container.querySelector<HTMLElement>("[data-switch-root]");
+    if (!route || !toggle) throw new Error("Expected group actions missing");
+    const deleteButton = route
+      .closest('[role="tooltip"]')
+      ?.nextElementSibling?.querySelector<HTMLButtonElement>("button");
+    if (!deleteButton) throw new Error("Delete action missing");
+    const r = route.getBoundingClientRect();
+    return {
+      square: Math.abs(r.width - r.height) < 1,
+      rightOfToggle: r.x > toggle.getBoundingClientRect().x,
+      leftOfDelete: r.right < deleteButton.getBoundingClientRect().x,
+      matchesDelete: Math.abs(r.width - deleteButton.getBoundingClientRect().width) < 1,
+    };
+  });
+  expect(actionLayout).toEqual({
+    square: true,
+    rightOfToggle: true,
+    leftOfDelete: true,
+    matchesDelete: true,
+  });
+  await routeButton.click();
+  await expect(routeButton).toHaveAttribute("aria-expanded", "true");
   const settings = group.getByRole("region", { name: "Резервирование интерфейсов" });
   await expect(settings.locator(".interface-entry.backup")).toHaveCount(2);
   await expect(settings.locator(".interface-entry.backup").first()).toContainText("eth1");
@@ -115,7 +140,7 @@ test("shows blocked route and correct failover summary", async ({ page }) => {
   const overview = page.getByLabel("Сводка маршрутизации");
   await expect(overview).toContainText("Нет маршрута");
   await expect(overview.locator(".overview-alert strong")).toHaveText("1");
-  await page.getByRole("button", { name: "Настроить резервные интерфейсы" }).click();
+  await page.getByRole("button", { name: "Настроить интерфейсы" }).click();
   await expect(page.getByLabel("Резервирование интерфейсов")).toContainText("Заблокирован");
 });
 
@@ -146,7 +171,7 @@ test("does not report an uncommitted route as active", async ({ page }) => {
   );
   await page.goto("/");
   await expect(page.locator(".route-status")).toHaveText("Не применён");
-  await page.getByRole("button", { name: "Настроить резервные интерфейсы" }).click();
+  await page.getByRole("button", { name: "Настроить интерфейсы" }).click();
   await expect(page.getByLabel("Резервирование интерфейсов")).toContainText("Выбран: nwg0");
   await expect(
     page.getByLabel("Сводка маршрутизации").locator(".overview-item").nth(2).locator("strong"),
@@ -165,7 +190,7 @@ test("desktop and mobile routes settings remain usable without horizontal overfl
     await page.goto("/");
     const group = page.locator(".group-wrapper").first();
     await expect(group).toBeVisible();
-    await group.getByRole("button", { name: "Настроить резервные интерфейсы" }).click();
+    await group.getByRole("button", { name: "Настроить интерфейсы" }).click();
     await expect(group.getByLabel("Резервирование интерфейсов")).toBeVisible();
     const widths = await page.evaluate(() => ({
       document: document.documentElement.scrollWidth,

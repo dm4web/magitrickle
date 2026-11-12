@@ -39,17 +39,17 @@ test.describe("Accessibility", () => {
       .first();
     await expect(interfaceTrigger).toBeFocused();
 
-    // Tab -> Configure failover (new focusable control).
-    await page.keyboard.press("Tab");
-    await expect(
-      page.locator(".group-wrapper").first().getByRole("button", {
-        name: "Configure backup interfaces",
-      }),
-    ).toBeFocused();
-
     // Tab -> Enable/Disable group.
     await page.keyboard.press("Tab");
     await expect(page.locator(".group-wrapper").first().locator(".enable-group")).toBeFocused();
+
+    // Tab -> Configure failover (icon next to the other action buttons).
+    await page.keyboard.press("Tab");
+    await expect(
+      page.locator(".group-wrapper").first().getByRole("button", {
+        name: "Configure interfaces",
+      }),
+    ).toBeFocused();
 
     // Tab -> Delete Group (do not depend on button indices).
     await page.keyboard.press("Tab");
