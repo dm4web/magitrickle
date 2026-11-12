@@ -405,13 +405,13 @@
               class="route-status"
               class:route-degraded={liveRouting?.active_interface === "blackhole"}
               title={liveRouting
-                ? `Текущий выбор: ${liveRouting.active_interface}`
-                : "Ожидание состояния маршрутизации"}
+                ? t("Current choice: {interface}", { interface: liveRouting.active_interface })
+                : t("Waiting for routing status")}
             >
               {liveRouting && !liveRouting.applied
-                ? "Не применён"
+                ? t("Not applied")
                 : liveRouting?.active_interface === "blackhole"
-                  ? "Заблокирован"
+                  ? t("Blocked")
                   : (liveRouting?.active_interface ?? "…")}
             </span>
           {/if}
@@ -419,11 +419,11 @@
             type="button"
             class="failover-config-trigger"
             class:active={showFailoverSettings}
-            aria-label="Настроить резервные интерфейсы"
+            aria-label={t("Configure backup interfaces")}
             aria-expanded={showFailoverSettings}
             onclick={() => (showFailoverSettings = !showFailoverSettings)}
             ><span class="failover-config-icon"><Route size={18} /></span><span
-              class="failover-config-text">Маршруты</span
+              class="failover-config-text">{t("Routes")}</span
             ></button
           >
 
@@ -691,27 +691,48 @@
 
   .group-name {
     & {
-      border: none;
-      background-color: transparent;
+      appearance: none;
+      display: block;
+      field-sizing: content;
+      width: auto;
+      min-width: 7ch;
+      max-width: 100%;
+      padding: 0.2rem 0.45rem;
+      border: 1px solid transparent;
+      border-radius: 0.45rem;
+      outline: none;
+      box-shadow: none;
+      background: transparent;
       font-size: 1.3rem;
       font-weight: 600;
       font-family: var(--font);
       color: var(--text);
-      border-bottom: 1px solid transparent;
+      line-height: 1.25;
       position: relative;
-      top: 0.1rem;
-      min-width: 0;
-      width: 100%;
       box-sizing: border-box;
+      transition:
+        background-color 150ms ease,
+        border-color 150ms ease;
     }
 
     &.has-warning {
       padding-right: 2.2rem;
     }
 
+    &:hover:not(:focus) {
+      background: color-mix(in srgb, var(--accent) 5%, transparent);
+    }
+
+    &:focus,
     &:focus-visible {
       outline: none;
-      border-bottom: 1px solid var(--accent);
+      box-shadow: none;
+      background: color-mix(in srgb, var(--accent) 8%, var(--bg-light));
+      border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+
+    &::selection {
+      background: color-mix(in srgb, var(--accent) 24%, transparent);
     }
   }
 
@@ -736,9 +757,10 @@
 
   .group-name-field {
     position: relative;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
 
   .search-highlight-overlay {
@@ -760,8 +782,8 @@
   }
 
   .group-name-search-overlay {
-    transform: translateY(0.1rem);
-    font: 600 1.3rem var(--font);
+    padding: 0.2rem 0.45rem;
+    font: 600 1.3rem/1.25 var(--font);
   }
 
   .search-highlight-overlay mark {

@@ -12,6 +12,7 @@ const initialGroup = {
 };
 
 test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("locale", JSON.stringify({ value: "ru" })));
   await page.route("**/api/v1/**", (route) => route.fulfill({ json: {} }));
   await page.route("**/auth", (route) => route.fulfill({ json: { enabled: false } }));
   await page.route("**/groups?with_rules=true", (route) =>
@@ -73,6 +74,7 @@ test("reorders backups, adds a candidate, changes TCP target and saves settings"
   await page.getByRole("option", { name: "lan1" }).click();
   await settings.getByRole("button", { name: "Добавить резерв" }).click();
   await expect(settings.locator(".interface-entry.backup")).toHaveCount(3);
+  await expect(settings.locator(".add-backup")).toHaveCount(0);
 
   await settings.getByLabel("Проверка доступности (TCP, необязательно)").fill("1.1.1.1:443");
   await page.locator("#save-changes").click();
@@ -115,23 +117,6 @@ test("shows blocked route and correct failover summary", async ({ page }) => {
   await expect(overview.locator(".overview-alert strong")).toHaveText("1");
   await page.getByRole("button", { name: "Настроить резервные интерфейсы" }).click();
   await expect(page.getByLabel("Резервирование интерфейсов")).toContainText("Заблокирован");
-});
-
-test("switches light/dark theme and restores it after reload", async ({ page }) => {
-  await page.goto("/");
-  const theme = page.locator(".theme-switch button");
-  await expect(theme).toBeVisible();
-  await page.evaluate(() => localStorage.removeItem("magitrickle-theme"));
-  await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
-
-  await page.locator(".theme-switch button").click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-
-  await page.locator(".theme-switch button").click();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 });
 
 test("does not report an uncommitted route as active", async ({ page }) => {
@@ -200,4 +185,29 @@ test("desktop and mobile routes settings remain usable without horizontal overfl
     await page.screenshot({ path: testInfo.outputPath(viewport.name + ".png"), fullPage: true });
     expect(widths.document, JSON.stringify(widths)).toBeLessThanOrEqual(widths.viewport + 1);
   }
+});
+
+test("group title edits inline without full-width browser focus outline", async ({ page }) => {
+  await page.goto("/");
+  const group = page.locator(".group-wrapper").first();
+  const name = group.locator("input.group-name");
+  await expect(name).toHaveValue("Media");
+  const field = await name.boundingBox();
+  const header = await group.locator(".group-header").boundingBox();
+  expect(field).not.toBeNull();
+  expect(header).not.toBeNull();
+  expect(field!.width).toBeLessThan(header!.width * 0.7);
+
+  await name.click();
+  await expect(name).toBeFocused();
+  const computed = await name.evaluate((input: HTMLInputElement) => ({
+    selected: input.selectionStart !== input.selectionEnd,
+    outline: getComputedStyle(input).outlineStyle,
+    shadow: getComputedStyle(input).boxShadow,
+  }));
+  expect(computed.selected).toBe(false);
+  expect(computed.outline).toBe("none");
+  expect(computed.shadow).toBe("none");
+  await name.fill("Media services");
+  await expect(name).toHaveValue("Media services");
 });

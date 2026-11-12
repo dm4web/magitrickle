@@ -29,6 +29,13 @@ for (const kind of ["groups", "subscriptions"] as const) {
     await page.route("**/groups?with_rules=true", (route) =>
       route.fulfill({ json: { groups: kind === "groups" ? items : [] } }),
     );
+    // The UI can keep both tabs mounted; an independent demo API must not
+    // contribute extra subscription selection frames to the groups test.
+    if (kind === "groups") {
+      await page.route("**/subscriptions", (route) =>
+        route.fulfill({ json: { subscriptions: [] } }),
+      );
+    }
     await page.route(
       kind === "groups" ? "**/groups?save=true" : "**/subscriptions",
       async (route) => {
@@ -113,7 +120,16 @@ for (const kind of ["groups", "subscriptions"] as const) {
     await frames.nth(2).hover();
     await page.getByRole("button", { name: "Select item: Third", exact: true }).click();
     await expect(bar.getByRole("status")).toContainText("2 selected");
-    await expect.poll(barGeometry).toEqual(singleSelectionGeometry);
+    // Browser layout coordinates may differ by subpixel rounding.
+    await expect
+      .poll(async () => {
+        const geometry = await barGeometry();
+        return (
+          Math.abs(geometry.x - singleSelectionGeometry.x) < 0.5 &&
+          Math.abs(geometry.width - singleSelectionGeometry.width) < 0.5
+        );
+      })
+      .toBe(true);
     await bar.getByRole("button", { name: "Copy to Clipboard" }).click();
     await expect
       .poll(() => page.evaluate(() => navigator.clipboard.readText()))
@@ -149,10 +165,13 @@ for (const kind of ["groups", "subscriptions"] as const) {
     await frames.nth(1).locator(".selection-tail").click();
     await expect(interfaceButton).toContainText("wlan0");
     await expect
-      .poll(() =>
-        frames.evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height)),
-      )
-      .toEqual(initialCardHeights);
+      .poll(async () => {
+        const heights = await frames.evaluateAll((nodes) =>
+          nodes.map((node) => node.getBoundingClientRect().height),
+        );
+        return heights.every((height, index) => Math.abs(height - initialCardHeights[index]) < 0.5);
+      })
+      .toBe(true);
     await page.locator(kind === "groups" ? "#save-changes" : "#save-subscriptions").click();
     await expect
       .poll(() => saved.map((item) => item.interface))

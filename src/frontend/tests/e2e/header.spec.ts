@@ -12,10 +12,9 @@ test.describe("Header Settings", () => {
   });
 
   test("should display version", async ({ page }) => {
-    // Version is in .version span.version-text
-    const version = page.locator(".version .version-text");
+    const version = page.locator(".app-brand .brand-version");
     await expect(version).toBeVisible();
-    expect(version.textContent.length).toBeGreaterThan(0);
+    await expect(version).not.toBeEmpty();
   });
 
   test("should rotate locale", async ({ page }) => {
@@ -24,14 +23,15 @@ test.describe("Header Settings", () => {
     // Get initial text (flag)
     const initialText = await localeBtn.textContent();
 
-    // Click to rotate
+    await expect(page.getByRole("tab", { name: "Groups" })).toBeVisible();
     await localeBtn.click();
-
-    // Verify text changed
     await expect(localeBtn).not.toHaveText(initialText || "");
-
-    // Click again to rotate back (assuming 2 locales, or just rotate more)
+    await expect(page.getByRole("tab", { name: "Группы" })).toBeVisible();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+    await page.reload();
+    await expect(page.getByRole("tab", { name: "Группы" })).toBeVisible();
     await localeBtn.click();
+    await expect(page.getByRole("tab", { name: "Groups" })).toBeVisible();
   });
 
   test("should open info dialog", async ({ page }) => {
@@ -53,4 +53,30 @@ test.describe("Header Settings", () => {
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
   });
+});
+
+test("system theme tracks OS and explicit themes override it", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("/");
+  const selector = page.locator(".theme-switch select");
+  await expect(selector).toHaveValue("system");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await selector.selectOption("light");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(page.locator(".theme-switch select")).toHaveValue("light");
+
+  await selector.selectOption("dark");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+
+  await selector.selectOption("system");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });

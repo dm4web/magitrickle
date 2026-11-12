@@ -139,7 +139,7 @@
     await tick();
     try {
       await store.addRulesToGroup(group_index, rules);
-      pendingToast = t("Imported rules: " + rules.length);
+      pendingToast = t("Imported rules: {count}", { count: rules.length });
     } catch (error) {
       console.error("Failed to import rules:", error);
       toast.error(t("Failed to import rules"));
@@ -195,13 +195,25 @@
     };
   });
 
-  let monitoredGroups = $derived(store.data.filter((group) => (group.fallback_interfaces?.length ?? 0) > 0).length);
-  let switchedGroups = $derived(routingStatus.groups.filter((group) =>
-    group.enabled && group.failover && group.applied && group.active_interface !== group.primary_interface && group.active_interface !== "blackhole"
-  ).length);
-  let blockedGroups = $derived(routingStatus.groups.filter((group) =>
-    group.enabled && group.failover && group.applied && group.active_interface === "blackhole"
-  ).length);
+  let monitoredGroups = $derived(
+    store.data.filter((group) => (group.fallback_interfaces?.length ?? 0) > 0).length,
+  );
+  let switchedGroups = $derived(
+    routingStatus.groups.filter(
+      (group) =>
+        group.enabled &&
+        group.failover &&
+        group.applied &&
+        group.active_interface !== group.primary_interface &&
+        group.active_interface !== "blackhole",
+    ).length,
+  );
+  let blockedGroups = $derived(
+    routingStatus.groups.filter(
+      (group) =>
+        group.enabled && group.failover && group.applied && group.active_interface === "blackhole",
+    ).length,
+  );
 
   onMount(() => {
     void store.mount();
@@ -218,26 +230,26 @@
 </script>
 
 <div class="groups-page">
-  <div class="routing-overview" aria-label="Сводка маршрутизации">
+  <div class="routing-overview" aria-label={t("Routing overview")}>
     <div class="overview-item">
-      <span>Группы правил</span>
+      <span>{t("Rule groups")}</span>
       <strong>{store.data.length}</strong>
-      <small>Всего настроено</small>
+      <small>{t("Total configured")}</small>
     </div>
     <div class="overview-item">
-      <span>Резервирование</span>
+      <span>{t("Failover")}</span>
       <strong>{monitoredGroups}</strong>
-      <small>Групп с резервом</small>
+      <small>{t("Groups with backups")}</small>
     </div>
     <div class="overview-item">
-      <span>Переключено</span>
+      <span>{t("Switched")}</span>
       <strong>{routingStatus.loaded ? switchedGroups : "—"}</strong>
-      <small>На резервный интерфейс</small>
+      <small>{t("On backup interface")}</small>
     </div>
     <div class="overview-item" class:overview-alert={blockedGroups > 0}>
-      <span>Нет маршрута</span>
+      <span>{t("No route")}</span>
       <strong>{routingStatus.loaded ? blockedGroups : "—"}</strong>
-      <small>Используется blackhole</small>
+      <small>{t("Using blackhole")}</small>
     </div>
   </div>
   <PageControls
@@ -396,11 +408,20 @@
     line-height: 1.3;
     font-variant-numeric: tabular-nums;
   }
-  .overview-item small { color: var(--text-2); font-size: 0.7rem; }
-  .overview-item.overview-alert strong { color: var(--red); }
+  .overview-item small {
+    color: var(--text-2);
+    font-size: 0.7rem;
+  }
+  .overview-item.overview-alert strong {
+    color: var(--red);
+  }
   @media (max-width: 700px) {
-    .routing-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .overview-item { padding: 0.65rem; }
+    .routing-overview {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .overview-item {
+      padding: 0.65rem;
+    }
   }
   .group-list {
     min-height: 1px;
@@ -458,8 +479,7 @@
       linear-gradient(black, black) center / 100% 1rem no-repeat;
   }
 
-  .group-wrapper:not(:has(~ .group-wrapper:not(.is-hidden)))
-    .group-drop-slot--bottom::before {
+  .group-wrapper:not(:has(~ .group-wrapper:not(.is-hidden))) .group-drop-slot--bottom::before {
     mask:
       radial-gradient(circle at 100% 0, transparent 0.5rem, black calc(0.5rem + 0.5px)) top left /
         0.5rem 0.5rem no-repeat,

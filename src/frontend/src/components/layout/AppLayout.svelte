@@ -13,6 +13,7 @@
   import Toast from "../feedback/Toast.svelte";
   import HeaderSettings from "./HeaderSettings.svelte";
 
+  import { isDev, version } from "../../data/build";
   import { LayoutList, Menu, RSS } from "../ui/icons";
 
   const lastActiveTab = persistedState("active_tab", "groups");
@@ -68,12 +69,20 @@
       <div class="nav-left">
         <div class="app-brand" aria-label="MagiTrickle">
           <span class="brand-symbol">M</span>
-          <span class="brand-name">MagiTrickle</span>
+          <span class="brand-text">
+            <span class="brand-name">MagiTrickle</span>
+            <span class="brand-meta">
+              <span class="brand-version" title={t("Build") + ": " + version}>{version}</span>
+              {#if isDev}
+                <span class="brand-channel">dev</span>
+              {/if}
+            </span>
+          </span>
         </div>
         <button
           type="button"
           class="mobile-dropdown-btn"
-          aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+          aria-label={t(isMenuOpen ? "Close menu" : "Open menu")}
           aria-expanded={isMenuOpen}
           onclick={toggleMenu}
         >
@@ -156,7 +165,7 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 1.3rem;
+    gap: 0.8rem;
   }
 
   .app-brand {
@@ -167,6 +176,36 @@
     font-size: 1.1rem;
     letter-spacing: -0.02em;
     white-space: nowrap;
+  }
+
+  .brand-text {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.15rem;
+  }
+
+  .brand-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--text-2);
+  }
+
+  .brand-version {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .brand-channel {
+    padding: 0.12rem 0.3rem;
+    border: 1px solid var(--border-light);
+    border-radius: 0.35rem;
+    color: var(--text-2);
+    font-size: 0.65rem;
+    line-height: 1;
   }
 
   .brand-symbol {
@@ -239,6 +278,16 @@
   @media (max-width: 980px) {
     .brand-name {
       display: none;
+    }
+  }
+
+  @media (max-width: 700px) {
+    .brand-channel {
+      display: none;
+    }
+
+    .brand-version {
+      font-size: 0.62rem;
     }
   }
 

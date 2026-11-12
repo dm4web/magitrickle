@@ -1,39 +1,56 @@
 <script lang="ts">
+  import { ChevronDown, Monitor, Moon, Sun } from "lucide-svelte";
   import { onMount } from "svelte";
-  import { Sun, Moon } from "lucide-svelte";
+
   import { authState, token } from "../../data/auth.svelte";
-  import { locale, locales, t } from "../../data/locale.svelte";
+  import { locale, supportedLocales, t } from "../../data/locale.svelte";
+  import { hide } from "../../lib/tooltip/tooltip.svelte";
   import InfoDialog from "../InfoDialog.svelte";
   import Button from "../ui/Button.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
 
   import { Info, Locale, LogOut } from "../ui/icons";
 
-  const version = import.meta.env.VITE_PKG_VERSION || "0.0.0";
-  const isDev =
-    import.meta.env.VITE_PKG_VERSION_IS_DEV?.toLowerCase() === "true" || version === "0.0.0";
+  type ThemeMode = "system" | "light" | "dark";
 
   let infoIsOpen = $state(false);
-  let uiTheme = $state<"dark" | "light">("dark");
+  let themeMode = $state<ThemeMode>("system");
 
   onMount(() => {
-    const savedTheme = localStorage.getItem("magitrickle-theme");
-    if (savedTheme === "dark" || savedTheme === "light") {
-      uiTheme = savedTheme;
-    }
-    document.documentElement.dataset.theme = uiTheme;
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const saved = localStorage.getItem("magitrickle-theme");
+    themeMode = saved === "light" || saved === "dark" ? saved : "system";
+    const updateSystemTheme = () => {
+      if (themeMode === "system") {
+        document.documentElement.dataset.theme = media.matches ? "dark" : "light";
+      }
+    };
+    document.documentElement.dataset.theme =
+      themeMode === "system" ? (media.matches ? "dark" : "light") : themeMode;
+    document.documentElement.lang = supportedLocales.includes(locale.current)
+      ? locale.current
+      : "en";
+    media.addEventListener("change", updateSystemTheme);
+    return () => media.removeEventListener("change", updateSystemTheme);
   });
 
-  function switchTheme() {
-    uiTheme = uiTheme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = uiTheme;
-    localStorage.setItem("magitrickle-theme", uiTheme);
+  function changeTheme(event: Event) {
+    const mode = (event.currentTarget as HTMLSelectElement).value as ThemeMode;
+    themeMode = mode;
+    document.documentElement.dataset.theme =
+      mode === "system"
+        ? window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light"
+        : mode;
+    localStorage.setItem("magitrickle-theme", mode);
   }
 
   const rotateLocale = () => {
-    const keys = Object.keys(locales);
-    const idx = keys.indexOf(locale.current);
-    locale.current = keys[(idx + 1) % keys.length];
+    hide();
+    const idx = supportedLocales.indexOf(locale.current);
+    locale.current = supportedLocales[(idx + 1) % supportedLocales.length];
+    document.documentElement.lang = locale.current;
   };
   const flag = (key: string) => (key === "en" ? "🇺🇸" : key === "ru" ? "🇷🇺" : key);
 
@@ -43,25 +60,24 @@
 </script>
 
 <div class="container">
-  <div class="version">
-    <Tooltip value={`${t("build")}: ${version}`}>
-      <span class="version-text">{version}</span>
-    </Tooltip>
-    {#if isDev}
-      <div class="under-construction">dev</div>
-    {/if}
-  </div>
-
   <div class="theme-switch">
-    <Tooltip value={uiTheme === "dark" ? "Светлая тема" : "Тёмная тема"}>
-      <Button small onclick={switchTheme}>
-        {#if uiTheme === "dark"}
-          <Sun size={18} />
+    <div class="theme-selector">
+      <span class="theme-icon" aria-hidden="true">
+        {#if themeMode === "system"}
+          <Monitor size={17} />
+        {:else if themeMode === "light"}
+          <Sun size={17} />
         {:else}
-          <Moon size={18} />
+          <Moon size={17} />
         {/if}
-      </Button>
-    </Tooltip>
+      </span>
+      <select aria-label={t("Theme")} title={t("Theme")} value={themeMode} onchange={changeTheme}>
+        <option value="system">{t("System theme")}</option>
+        <option value="light">{t("Light theme")}</option>
+        <option value="dark">{t("Dark theme")}</option>
+      </select>
+      <span class="theme-chevron" aria-hidden="true"><ChevronDown size={14} /></span>
+    </div>
   </div>
 
   <div class="info">
@@ -69,7 +85,7 @@
       <Button small onclick={() => (infoIsOpen = true)}>
         <div class="info-content">
           <Info size={16} />
-          {t("About")}
+          <span class="info-label">{t("About")}</span>
         </div>
       </Button>
     </Tooltip>
@@ -100,49 +116,12 @@
 <InfoDialog bind:open={infoIsOpen} />
 
 <style>
-  .under-construction {
-    background: repeating-linear-gradient(45deg, #ffcc00, #ffcc00 10px, #ff6600 10px, #ff6600 20px);
-    color: black;
-    font-weight: bold;
-    padding: 4px 4px;
-    border-radius: 4px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    flex: 0 0 auto;
-    margin-left: 0.5rem;
-    white-space: nowrap;
-  }
-
   .container {
     display: flex;
-    flex-direction: row;
+    justify-content: flex-end;
     align-items: center;
-    gap: 0.8rem;
+    gap: 0.6rem;
     min-width: 0;
-    flex: 1;
-  }
-
-  .version {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .version :global(> *:first-child) {
-    min-width: 0;
-    display: block;
-    overflow: hidden;
-  }
-
-  .version-text {
-    display: block;
-    font-size: smaller;
-    color: var(--text-2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    width: 100%;
   }
 
   .locale,
@@ -150,27 +129,20 @@
   .info,
   .theme-switch {
     display: flex;
-    flex-direction: row;
     align-items: center;
     flex: 0 0 auto;
   }
 
-  .locale,
-  .logout {
-    gap: 1rem;
-  }
-
-  .logout :global(button),
   .locale :global(button),
   .info :global(button),
-  .theme-switch :global(button) {
-    background: var(--bg-light);
-    border-radius: 0.5rem;
+  .logout :global(button) {
     height: 35px;
+    border-radius: 0.5rem;
+    background: var(--bg-light);
   }
 
   .locale :global(button) {
-    width: 55px;
+    min-width: 3.35rem;
   }
 
   .locale-content,
@@ -178,22 +150,92 @@
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
-    font-size: 1rem;
+    font-size: 0.85rem;
     line-height: 1;
+    white-space: nowrap;
   }
 
-  .info-content {
-    font-size: 0.85rem;
+  .theme-selector {
+    height: 35px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    color: var(--text);
+  }
+
+  .theme-selector select {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 35px;
+    min-width: 7.9rem;
+    padding: 0 1.85rem 0 2rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    background: var(--bg-light);
+    color: var(--text);
+    font: 500 0.86rem var(--font);
+    cursor: pointer;
+  }
+
+  .theme-selector select:hover {
+    border-color: var(--border-light);
+  }
+
+  .theme-selector select:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .theme-icon,
+  .theme-chevron {
+    position: absolute;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    pointer-events: none;
+    color: var(--text-2);
+  }
+
+  .theme-icon {
+    left: 0.65rem;
+  }
+
+  .theme-chevron {
+    right: 0.45rem;
   }
 
   @media (max-width: 700px) {
-    .locale,
-    .logout {
-      gap: 0.5rem;
+    .container {
+      gap: 0.4rem;
     }
 
-    .container {
-      gap: 0.5rem;
+    .info-label {
+      display: none;
+    }
+
+    .theme-selector select {
+      min-width: 0;
+      width: 3.1rem;
+      padding: 0;
+      font-size: 0;
+      color: transparent;
+    }
+
+    .theme-selector select option {
+      font-size: 1rem;
+      color: var(--text);
+    }
+
+    .theme-icon {
+      left: 0.48rem;
+    }
+
+    .theme-chevron {
+      right: 0.25rem;
+    }
+
+    .locale :global(button) {
+      min-width: 3rem;
     }
   }
 </style>

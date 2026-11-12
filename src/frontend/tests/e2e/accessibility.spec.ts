@@ -43,7 +43,7 @@ test.describe("Accessibility", () => {
     await page.keyboard.press("Tab");
     await expect(
       page.locator(".group-wrapper").first().getByRole("button", {
-        name: "Настроить резервные интерфейсы",
+        name: "Configure backup interfaces",
       }),
     ).toBeFocused();
 
