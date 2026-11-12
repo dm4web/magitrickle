@@ -145,8 +145,13 @@ test.describe("Drag and Drop", () => {
     if (!grip) throw new Error("Grip not found");
     await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
     await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2 + 16, grip.y + grip.height / 2 + 16, {
+      steps: 10,
+    });
+    await expect(page.locator("html")).toHaveAttribute("data-dnd-scope", "group");
     const visitSlot = async (index: number, allowed: boolean) => {
       const slot = groups.nth(index).locator(".group-drop-slot--bottom");
+      await slot.scrollIntoViewIfNeeded();
       const box = await slot.boundingBox();
       if (!box) throw new Error("Slot not found");
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 10 });

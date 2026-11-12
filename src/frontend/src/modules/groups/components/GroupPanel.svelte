@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Collapsible } from "bits-ui";
+  import { Route } from "lucide-svelte";
   import { createEventDispatcher, getContext, tick } from "svelte";
   import { slide } from "svelte/transition";
 
@@ -10,11 +11,11 @@
   import Switch from "../../../components/ui/Switch.svelte";
   import Tooltip from "../../../components/ui/Tooltip.svelte";
   import { interfaces } from "../../../data/interfaces.svelte";
-  import { routingStatus } from "../../../data/routing-status.svelte";
   import { t } from "../../../data/locale.svelte";
+  import { routingStatus } from "../../../data/routing-status.svelte";
   import { GROUPS_STORE_CONTEXT, type GroupsStore } from "../groups.svelte";
-  import GroupDuplicateMenu from "./GroupDuplicateMenu.svelte";
   import FailoverSettings from "./FailoverSettings.svelte";
+  import GroupDuplicateMenu from "./GroupDuplicateMenu.svelte";
   import RuleRow from "./RuleRow.svelte";
 
   import {
@@ -421,7 +422,10 @@
             aria-label="Настроить резервные интерфейсы"
             aria-expanded={showFailoverSettings}
             onclick={() => (showFailoverSettings = !showFailoverSettings)}
-          >Маршруты</button>
+            ><span class="failover-config-icon"><Route size={18} /></span><span
+              class="failover-config-text">Маршруты</span
+            ></button
+          >
 
           <Tooltip value={t(group.enable ? "Disable Group" : "Enable Group")}>
             <Switch class="enable-group" bind:checked={group.enable} />
@@ -505,11 +509,7 @@
       </div>
 
       {#if showFailoverSettings}
-        <FailoverSettings
-          {group}
-          status={liveRouting}
-          onChanged={() => store.markDataRevision()}
-        />
+        <FailoverSettings {group} status={liveRouting} onChanged={() => store.markDataRevision()} />
       {/if}
 
       <Collapsible.Content>
@@ -593,12 +593,29 @@
     font: inherit;
     font-size: 0.8rem;
   }
-  .failover-config-trigger:hover, .failover-config-trigger.active {
+  .failover-config-icon {
+    display: none;
+  }
+  .failover-config-text {
+    display: inline;
+  }
+  .failover-config-trigger:hover,
+  .failover-config-trigger.active {
     color: var(--text);
     border-color: var(--accent);
   }
-  .route-status { color: var(--green); font-size: 0.78rem; font-weight: 600; max-width: 7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .route-status.route-degraded { color: var(--red); }
+  .route-status {
+    color: var(--green);
+    font-size: 0.78rem;
+    font-weight: 600;
+    max-width: 7rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .route-status.route-degraded {
+    color: var(--red);
+  }
   .group {
     & {
       background-color: var(--bg-medium);
@@ -868,6 +885,15 @@
   }
 
   @media (max-width: 700px) {
+    .failover-config-icon {
+      display: block;
+    }
+    .failover-config-text {
+      display: none;
+    }
+    .failover-config-trigger {
+      padding: 0.35rem;
+    }
     .group-header {
       display: flex;
       flex-direction: column;
@@ -892,7 +918,9 @@
 
     .group-actions {
       width: calc(100% - 2rem);
-      justify-content: stretch;
+      min-width: 0;
+      flex-wrap: wrap;
+      justify-content: flex-start;
       gap: 0.25rem;
       margin-left: 2rem;
     }
@@ -900,12 +928,8 @@
     :global(.group-actions > *:nth-child(1)) {
       margin-right: auto;
       width: 150px;
-      min-width: 140px;
-      flex: 1 1 auto;
-    }
-
-    :global(.group-actions > *:nth-child(2)) {
-      margin-left: auto;
+      min-width: 0;
+      flex: 1 1 6rem;
     }
 
     .group-rules-header {

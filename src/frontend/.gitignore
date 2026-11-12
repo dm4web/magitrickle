@@ -29,3 +29,4 @@ build
 .npm-cache
 .deno-cache
 vite.config.d.ts
+.playwright-browsers

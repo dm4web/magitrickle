@@ -39,27 +39,24 @@ test.describe("Accessibility", () => {
       .first();
     await expect(interfaceTrigger).toBeFocused();
 
-    // Tab -> Switch (Enable/Disable)
+    // Tab -> Configure failover (new focusable control).
     await page.keyboard.press("Tab");
-    const switchBtn = page.locator(".group-wrapper").first().locator(".enable-group");
-    await expect(switchBtn).toBeFocused();
+    await expect(
+      page.locator(".group-wrapper").first().getByRole("button", {
+        name: "Настроить резервные интерфейсы",
+      }),
+    ).toBeFocused();
 
-    // Tab -> Delete Group Button
+    // Tab -> Enable/Disable group.
     await page.keyboard.press("Tab");
-    // Delete button is inside .group-actions.
-    // Order: Select, Switch, Delete, Add, Import, Trigger.
-    // Select is separate div. Switch is separate.
-    // Then Delete.
-    // Selector: .group-actions button that has Delete icon, or just next one.
-    // Let's use checking if focused element contains delete icon logic or simpler:
-    // Just check if we can reach it.
-    // Let's assume we want to verify navigation flow.
+    await expect(page.locator(".group-wrapper").first().locator(".enable-group")).toBeFocused();
+
+    // Tab -> Delete Group (do not depend on button indices).
+    await page.keyboard.press("Tab");
     const deleteBtn = page
       .locator(".group-wrapper")
       .first()
-      .locator(".group-actions button")
-      .nth(2);
-    // nth(0) is Select, nth(1) is Switch, nth(2) is Delete.
+      .locator('[data-value="Delete Group"] button');
     await expect(deleteBtn).toBeFocused();
   });
 });
