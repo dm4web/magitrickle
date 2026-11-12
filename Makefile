@@ -121,7 +121,7 @@ BACKEND_BUILD_PROPERTIES := PLATFORM=\"$(PLATFORM)\" TARGET=\"$(TARGET)\" GOOS=\
 
 FRONTEND_DEPENDENCIES := ./src/frontend/package.json ./src/frontend/package-lock.json
 FRONTEND_SOURCES := $(shell find ./src/frontend/src -type f 2>/dev/null)
-FRONTEND_SOURCES += ./src/frontend/vite.config.ts ./src/frontend/tsconfig.json ./src/frontend/svelte.config.js ./src/frontend/tailwind.config.ts
+FRONTEND_SOURCES += ./src/frontend/vite.config.ts ./src/frontend/tsconfig.json ./src/frontend/svelte.config.js
 FRONTEND_SOURCES += $(FRONTEND_DEPENDENCIES)
 FRONTEND_BUILD_PROPERTIES := PKG_VERSION_DISPLAY=\"$(PKG_VERSION_DISPLAY)\" PKG_VERSION_PRERELEASE=\"$(PKG_VERSION_PRERELEASE)\"
 
@@ -239,7 +239,9 @@ define _copy_files
 	if [ -d $(1)/var/lib/magitrickle ]; then mkdir -p $(STATE_DIR); cp -r $(1)/var/lib/magitrickle/* $(STATE_DIR); fi
 endef
 
-prepare_files: build
+# A release job reuses the frontend built once by CI.
+prepare_files: build_backend $(if $(filter 1,$(FRONTEND_PREBUILT)),,build_frontend)
+	$(if $(filter 1,$(FRONTEND_PREBUILT)),test -f ./src/frontend/build/index.html,)
 	rm -rf "$(ROOT_DIR)"
 	mkdir -p "$(BIN_DIR)"
 	cp "$(COMPILE_DIR)/magitrickled" "$(BIN_DIR)/magitrickled"

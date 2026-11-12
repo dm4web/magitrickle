@@ -1,5 +1,9 @@
 @import "tailwindcss";
 @import "@skeletonlabs/skeleton";
+@import "@skeletonlabs/skeleton/themes/cerberus";
+@import "@skeletonlabs/skeleton/themes/catppuccin";
+@plugin "@tailwindcss/forms";
+@source "../node_modules/@skeletonlabs/skeleton-svelte";
 @import "@fontsource/ibm-plex-sans/400.css";
 @import "@fontsource/ibm-plex-sans/500.css";
 @import "@fontsource/ibm-plex-sans/600.css";
@@ -7,7 +11,6 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 
-@config "../tailwind.config.ts";
 
 /* AWG Manager design tokens: Tokyo Night palette and typography. */
 @theme {
