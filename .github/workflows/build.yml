@@ -24,13 +24,27 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
       - id: matrix
         name: Build target matrix
+        env:
+          BUILD_ENTWARE_GENERIC: ${{ vars.BUILD_ENTWARE_GENERIC }}
+          BUILD_OPENWRT: ${{ vars.BUILD_OPENWRT }}
         run: |
           python3 - <<'PY' >> "$GITHUB_OUTPUT"
           import json
+          import os
           from pathlib import Path
-          files = sorted(Path("config").glob("*/*.config"))
+
+          def enabled(name):
+              return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
+
+          # Always build Keenetic-specific Entware packages.
+          files = sorted(Path("config/entware").glob("*_kn.config"))
+          if enabled("BUILD_ENTWARE_GENERIC"):
+              files += sorted(p for p in Path("config/entware").glob("*.config")
+                              if not p.stem.endswith("_kn"))
+          if enabled("BUILD_OPENWRT"):
+              files += sorted(Path("config/openwrt").glob("*.config"))
           if not files:
-              raise SystemExit("No target configurations")
+              raise SystemExit("No Keenetic Entware configurations found")
           matrix = [
               {"config": str(p), "name": f"{p.parent.name}-{p.stem}",
                "platform": p.parent.name}
@@ -87,7 +101,9 @@ jobs:
           cache-dependency-path: src/backend/go.sum
       - name: Go tests
         working-directory: src/backend
-        run: go test ./...
+        run: |
+          go test ./...
+          go test -tags "entware entware_kn" ./...
 
   packages:
     name: ${{ matrix.name }}
@@ -117,13 +133,17 @@ jobs:
         with:
           name: frontend-build
           path: src/frontend/build
-      - name: Install build tools
+      - name: Install Entware packaging tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y fakeroot upx-ucl openssl meson ninja-build pkg-config libssl-dev zlib1g-dev libzstd-dev
+          sudo apt-get install -y fakeroot upx-ucl
           if ! command -v upx >/dev/null 2>&1; then
             sudo ln -s "$(command -v upx-ucl)" /usr/local/bin/upx
           fi
+      - name: Install OpenWrt packaging tools
+        if: matrix.platform == 'openwrt'
+        run: |
+          sudo apt-get install -y openssl meson ninja-build pkg-config libssl-dev zlib1g-dev libzstd-dev
       - name: Build apk-tools 3
         if: matrix.platform == 'openwrt'
         run: |
@@ -196,7 +216,9 @@ jobs:
           test "$(find release-assets -maxdepth 1 -name '*.apk' | wc -l)" -eq "$EXPECTED_APK"
           test "$(find release-assets -maxdepth 1 -name '*.pub' | wc -l)" -eq "$EXPECTED_APK"
           cd release-assets
-          sha256sum ./*.ipk ./*.apk ./*.pub > SHA256SUMS
+          find . -maxdepth 1 -type f \( -name '*.ipk' -o -name '*.apk' -o -name '*.pub' \) -print0 |
+            sort -z | xargs -0 sha256sum > SHA256SUMS
+          test "$(wc -l < SHA256SUMS)" -eq "$((EXPECTED_TOTAL + EXPECTED_APK * 2))"
       - name: Upload packages to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
