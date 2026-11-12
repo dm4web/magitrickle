@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+  import { Sun, Moon } from "lucide-svelte";
   import { authState, token } from "../../data/auth.svelte";
   import { locale, locales, t } from "../../data/locale.svelte";
   import InfoDialog from "../InfoDialog.svelte";
@@ -12,6 +14,21 @@
     import.meta.env.VITE_PKG_VERSION_IS_DEV?.toLowerCase() === "true" || version === "0.0.0";
 
   let infoIsOpen = $state(false);
+  let uiTheme = $state<"dark" | "light">("dark");
+
+  onMount(() => {
+    const savedTheme = localStorage.getItem("magitrickle-theme");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      uiTheme = savedTheme;
+    }
+    document.documentElement.dataset.theme = uiTheme;
+  });
+
+  function switchTheme() {
+    uiTheme = uiTheme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = uiTheme;
+    localStorage.setItem("magitrickle-theme", uiTheme);
+  }
 
   const rotateLocale = () => {
     const keys = Object.keys(locales);
@@ -33,6 +50,18 @@
     {#if isDev}
       <div class="under-construction">dev</div>
     {/if}
+  </div>
+
+  <div class="theme-switch">
+    <Tooltip value={uiTheme === "dark" ? "Светлая тема" : "Тёмная тема"}>
+      <Button small onclick={switchTheme}>
+        {#if uiTheme === "dark"}
+          <Sun size={18} />
+        {:else}
+          <Moon size={18} />
+        {/if}
+      </Button>
+    </Tooltip>
   </div>
 
   <div class="info">
@@ -118,7 +147,8 @@
 
   .locale,
   .logout,
-  .info {
+  .info,
+  .theme-switch {
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -132,7 +162,8 @@
 
   .logout :global(button),
   .locale :global(button),
-  .info :global(button) {
+  .info :global(button),
+  .theme-switch :global(button) {
     background: var(--bg-light);
     border-radius: 0.5rem;
     height: 35px;

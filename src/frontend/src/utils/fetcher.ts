@@ -3,8 +3,9 @@ import { t } from "../data/locale.svelte";
 
 import { toast } from "./events";
 
-const viteEnv = (import.meta as ImportMeta & { env?: { DEV?: boolean } }).env;
-export const API_BASE = viteEnv?.DEV ? "http://localhost:6969/api/v1" : "/api/v1";
+// SvelteKit/Vite proxies /api in development; the production Go server
+// serves the same prefix directly.
+export const API_BASE = "/api/v1";
 
 /** Ответ сервера с кодом ошибки; message — тело ответа. */
 export class HttpError extends Error {

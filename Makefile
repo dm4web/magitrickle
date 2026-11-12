@@ -121,7 +121,7 @@ BACKEND_BUILD_PROPERTIES := PLATFORM=\"$(PLATFORM)\" TARGET=\"$(TARGET)\" GOOS=\
 
 FRONTEND_DEPENDENCIES := ./src/frontend/package.json ./src/frontend/package-lock.json
 FRONTEND_SOURCES := $(shell find ./src/frontend/src -type f 2>/dev/null)
-FRONTEND_SOURCES += ./src/frontend/vite.config.ts ./src/frontend/tsconfig.json
+FRONTEND_SOURCES += ./src/frontend/vite.config.ts ./src/frontend/tsconfig.json ./src/frontend/svelte.config.js ./src/frontend/tailwind.config.ts
 FRONTEND_SOURCES += $(FRONTEND_DEPENDENCIES)
 FRONTEND_BUILD_PROPERTIES := PKG_VERSION_DISPLAY=\"$(PKG_VERSION_DISPLAY)\" PKG_VERSION_PRERELEASE=\"$(PKG_VERSION_PRERELEASE)\"
 
@@ -149,7 +149,7 @@ _return_export_dynamic_env:
 	@bash -c 'printf "TAG=%q\n" "$(TAG)"'
 
 clear:
-	rm -rf ./src/frontend/dist
+	rm -rf ./src/frontend/build
 	rm -rf "$(BUILD_DIR)"
 
 clean:
@@ -244,7 +244,7 @@ prepare_files: build
 	mkdir -p "$(BIN_DIR)"
 	cp "$(COMPILE_DIR)/magitrickled" "$(BIN_DIR)/magitrickled"
 	mkdir -p "$(USRSHARE_DIR)/magitrickle/skins/default"
-	cp -r ./src/frontend/dist/* "$(USRSHARE_DIR)/magitrickle/skins/default"
+	cp -r ./src/frontend/build/* "$(USRSHARE_DIR)/magitrickle/skins/default"
 	$(call _copy_files,./files/common)
 	$(if $(filter entware,$(PLATFORM)), $(call _copy_files,./files/entware))
 	$(if $(filter entware,$(PLATFORM)), $(if $(filter %_kn,$(TARGET)), $(call _copy_files,./files/entware_kn)))

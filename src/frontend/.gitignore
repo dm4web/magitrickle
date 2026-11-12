@@ -21,3 +21,6 @@ dist-ssr
 *.sw?
 
 dev/groups*.json
+# SvelteKit
+.svelte-kit
+build
