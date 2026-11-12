@@ -183,4 +183,5 @@ jobs:
           name: keenetic-test-ipk-${{ matrix.target }}
           path: .build/magitrickle_*.ipk
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 7
