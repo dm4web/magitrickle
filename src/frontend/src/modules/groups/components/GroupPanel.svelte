@@ -10,9 +10,11 @@
   import Switch from "../../../components/ui/Switch.svelte";
   import Tooltip from "../../../components/ui/Tooltip.svelte";
   import { interfaces } from "../../../data/interfaces.svelte";
+  import { routingStatus } from "../../../data/routing-status.svelte";
   import { t } from "../../../data/locale.svelte";
   import { GROUPS_STORE_CONTEXT, type GroupsStore } from "../groups.svelte";
   import GroupDuplicateMenu from "./GroupDuplicateMenu.svelte";
+  import FailoverSettings from "./FailoverSettings.svelte";
   import RuleRow from "./RuleRow.svelte";
 
   import {
@@ -73,6 +75,8 @@
   let visibleRuleIndices = $derived(store.visibilityMap.get(group_index));
   let effectiveOpen = $derived(group ? (store.open_state[group.id] ?? false) : false);
   let duplicateConflicts = $derived(group ? store.getDuplicateConflictsForGroup(group.id) : []);
+  let showFailoverSettings = $state(false);
+  let liveRouting = $derived(routingStatus.groups.find((entry) => entry.id === group?.id));
 
   function toggleOpen() {
     if (!group) return;
@@ -395,6 +399,29 @@
             }))}
             bind:selected={group.interface}
           />
+          {#if (group.fallback_interfaces?.length ?? 0) > 0}
+            <span
+              class="route-status"
+              class:route-degraded={liveRouting?.active_interface === "blackhole"}
+              title={liveRouting
+                ? `Текущий выбор: ${liveRouting.active_interface}`
+                : "Ожидание состояния маршрутизации"}
+            >
+              {liveRouting && !liveRouting.applied
+                ? "Не применён"
+                : liveRouting?.active_interface === "blackhole"
+                  ? "Заблокирован"
+                  : (liveRouting?.active_interface ?? "…")}
+            </span>
+          {/if}
+          <button
+            type="button"
+            class="failover-config-trigger"
+            class:active={showFailoverSettings}
+            aria-label="Настроить резервные интерфейсы"
+            aria-expanded={showFailoverSettings}
+            onclick={() => (showFailoverSettings = !showFailoverSettings)}
+          >Маршруты</button>
 
           <Tooltip value={t(group.enable ? "Disable Group" : "Enable Group")}>
             <Switch class="enable-group" bind:checked={group.enable} />
@@ -477,6 +504,14 @@
         </div>
       </div>
 
+      {#if showFailoverSettings}
+        <FailoverSettings
+          {group}
+          status={liveRouting}
+          onChanged={() => store.markDataRevision()}
+        />
+      {/if}
+
       <Collapsible.Content>
         <div transition:slide={searchActive ? { duration: 0 } : {}}>
           {#if totalRulesCount > 0}
@@ -548,6 +583,22 @@
 {/if}
 
 <style>
+  .failover-config-trigger {
+    cursor: pointer;
+    color: var(--text-2);
+    background: var(--bg-medium);
+    padding: 0.38rem 0.55rem;
+    border: 1px solid var(--bg-light-extra);
+    border-radius: 0.5rem;
+    font: inherit;
+    font-size: 0.8rem;
+  }
+  .failover-config-trigger:hover, .failover-config-trigger.active {
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .route-status { color: var(--green); font-size: 0.78rem; font-weight: 600; max-width: 7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .route-status.route-degraded { color: var(--red); }
   .group {
     & {
       background-color: var(--bg-medium);

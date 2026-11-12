@@ -6,6 +6,7 @@
   import PageControls from "../../components/layout/PageControls.svelte";
   import Placeholder from "../../components/ui/Placeholder.svelte";
   import { t } from "../../data/locale.svelte";
+  import { fetchRoutingStatus, routingStatus } from "../../data/routing-status.svelte";
   import GroupPanel from "./components/GroupPanel.svelte";
   import Search from "./components/Search.svelte";
   import ImportConfigDialog from "./dialogs/ImportConfigDialog.svelte";
@@ -194,8 +195,21 @@
     };
   });
 
+  let monitoredGroups = $derived(store.data.filter((group) => (group.fallback_interfaces?.length ?? 0) > 0).length);
+  let switchedGroups = $derived(routingStatus.groups.filter((group) =>
+    group.enabled && group.failover && group.applied && group.active_interface !== group.primary_interface && group.active_interface !== "blackhole"
+  ).length);
+  let blockedGroups = $derived(routingStatus.groups.filter((group) =>
+    group.enabled && group.failover && group.applied && group.active_interface === "blackhole"
+  ).length);
+
   onMount(() => {
     void store.mount();
+    void fetchRoutingStatus().catch((error) => console.error("Routing status:", error));
+    const timer = window.setInterval(() => {
+      void fetchRoutingStatus().catch((error) => console.error("Routing status:", error));
+    }, 5000);
+    return () => window.clearInterval(timer);
   });
 
   onDestroy(() => {
@@ -204,6 +218,28 @@
 </script>
 
 <div class="groups-page">
+  <div class="routing-overview" aria-label="Сводка маршрутизации">
+    <div class="overview-item">
+      <span>Группы правил</span>
+      <strong>{store.data.length}</strong>
+      <small>Всего настроено</small>
+    </div>
+    <div class="overview-item">
+      <span>Резервирование</span>
+      <strong>{monitoredGroups}</strong>
+      <small>Групп с резервом</small>
+    </div>
+    <div class="overview-item">
+      <span>Переключено</span>
+      <strong>{routingStatus.loaded ? switchedGroups : "—"}</strong>
+      <small>На резервный интерфейс</small>
+    </div>
+    <div class="overview-item" class:overview-alert={blockedGroups > 0}>
+      <span>Нет маршрута</span>
+      <strong>{routingStatus.loaded ? blockedGroups : "—"}</strong>
+      <small>Используется blackhole</small>
+    </div>
+  </div>
   <PageControls
     actionsClass="group-controls-actions"
     controlsClass="group-controls"
@@ -335,6 +371,37 @@
 {/if}
 
 <style>
+  .routing-overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin: 0.7rem 0 1rem;
+  }
+  .overview-item {
+    background: var(--bg-medium);
+    border: 1px solid var(--border-light);
+    border-radius: 0.8rem;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.12rem;
+  }
+  .overview-item span {
+    color: var(--text-2);
+    font-size: 0.8rem;
+  }
+  .overview-item strong {
+    color: var(--text);
+    font-size: 1.65rem;
+    line-height: 1.3;
+    font-variant-numeric: tabular-nums;
+  }
+  .overview-item small { color: var(--text-2); font-size: 0.7rem; }
+  .overview-item.overview-alert strong { color: var(--red); }
+  @media (max-width: 700px) {
+    .routing-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .overview-item { padding: 0.65rem; }
+  }
   .group-list {
     min-height: 1px;
     opacity: 0;

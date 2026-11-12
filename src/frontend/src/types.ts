@@ -47,6 +47,8 @@ export const GroupSchema = object({
   name: fallback(string(), ""),
   color: fallback(optional(string()), "#ffffff"),
   interface: string(),
+  fallback_interfaces: optional(array(string())),
+  check_target: optional(string()),
   enable: fallback(boolean(), true),
   rules: array(RuleSchema),
 });

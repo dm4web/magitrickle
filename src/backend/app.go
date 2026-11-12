@@ -3,7 +3,10 @@ package magitrickle
 import (
 	"errors"
 	"fmt"
+	"net"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -61,6 +64,9 @@ type App struct {
 
 	// routing существует, пока приложение запущено.
 	routing atomic.Pointer[routing.Table]
+	// failoverActive and interfaceChecks are protected by stateMu.
+	failoverActive  map[intID.ID]string
+	interfaceChecks map[interfaceCheckKey]interfaceCheckState
 
 	dnsMITM      *dnsMITMProxy.DNSMITMProxy
 	nfHelper     *netfilterTools.Helper
@@ -244,23 +250,42 @@ func (a *App) setSubscriptionsLocked(subscriptions []*models.Subscription) error
 	return a.commitLocked(func() { a.subscriptions = previous })
 }
 
-// commitLocked применяет текущие группы и подписки к маршрутизации. Если
-// применить не удалось, restore возвращает прежнее состояние, и оно
-// применяется заново, чтобы маршрутизация не осталась в промежуточном виде.
-// Пока приложение не запущено, ничего не делает.
+// activeRuleSetsLocked applies runtime interface selections without changing stored groups.
+func (a *App) activeRuleSetsLocked() []rulesets.RuleSet {
+	sets := a.ruleSets.Build(a.subscriptions, a.groups)
+	for i := range sets {
+		selected := a.failoverActive[sets[i].ID]
+		if selected == "" {
+			continue
+		}
+		for _, group := range a.groups {
+			if group.ID != sets[i].ID || len(group.FallbackInterfaces) == 0 {
+				continue
+			}
+			if selected == "blackhole" || selected == group.Interface || slices.Contains(group.FallbackInterfaces, selected) {
+				sets[i].Interface = selected
+			}
+			break
+		}
+	}
+	return sets
+}
+
+// commitLocked applies the current configuration. On a failed user edit, it
+// restores the old snapshot and attempts to restore the former routes.
 func (a *App) commitLocked(restore func()) error {
 	table := a.routing.Load()
 	if table == nil {
 		return nil
 	}
 
-	err := table.Apply(a.ruleSets.Build(a.subscriptions, a.groups))
+	err := table.Apply(a.activeRuleSetsLocked())
 	if err == nil || restore == nil {
 		return err
 	}
 
 	restore()
-	if restoreErr := table.Apply(a.ruleSets.Build(a.subscriptions, a.groups)); restoreErr != nil {
+	if restoreErr := table.Apply(a.activeRuleSetsLocked()); restoreErr != nil {
 		return errors.Join(err, fmt.Errorf("failed to restore previous state: %w", restoreErr))
 	}
 	return err
@@ -313,6 +338,23 @@ func validateGroups(groups []*models.Group, subscriptions []*models.Subscription
 			return fmt.Errorf("%w: duplicate group %s", app.ErrGroupIDConflict, group.ID)
 		}
 		seen[group.ID] = struct{}{}
+		if len(group.FallbackInterfaces) > 0 && group.Interface == "" {
+			return fmt.Errorf("group %s: primary interface must be set", group.ID)
+		}
+		candidates := map[string]bool{group.Interface: true}
+		for _, name := range group.FallbackInterfaces {
+			if strings.TrimSpace(name) != name || name == "" || candidates[name] {
+				return fmt.Errorf("group %s: invalid or duplicate fallback interface %q", group.ID, name)
+			}
+			candidates[name] = true
+		}
+		if group.CheckTarget != "" {
+			host, port, err := net.SplitHostPort(group.CheckTarget)
+			number, portErr := strconv.Atoi(port)
+			if err != nil || net.ParseIP(host) == nil || portErr != nil || number < 1 || number > 65535 {
+				return fmt.Errorf("group %s: check_target must be an IP:port (IPv6 in brackets)", group.ID)
+			}
+		}
 
 		if err := uniqueRuleIDs(group.Rules, func(rule *models.Rule) intID.ID { return rule.ID }); err != nil {
 			return fmt.Errorf("group %s: %w", group.ID, err)

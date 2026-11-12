@@ -33,6 +33,8 @@ func GroupFromReq(req types.GroupReq, existing *models.Group) (*models.Group, er
 		group.Color = strings.ToLower(req.Color)
 	}
 	group.Interface = req.Interface
+	group.FallbackInterfaces = append([]string(nil), req.FallbackInterfaces...)
+	group.CheckTarget = strings.TrimSpace(req.CheckTarget)
 	group.Enable = true
 	if req.Enable != nil {
 		group.Enable = *req.Enable
@@ -97,11 +99,13 @@ func RespFromGroups(groups []*models.Group, withRules bool) types.GroupsRes {
 
 func RespFromGroup(group *models.Group, withRules bool) types.GroupRes {
 	groupRes := types.GroupRes{
-		ID:        group.ID,
-		Name:      group.Name,
-		Color:     group.Color,
-		Interface: group.Interface,
-		Enable:    group.Enable,
+		ID:                 group.ID,
+		Name:               group.Name,
+		Color:              group.Color,
+		Interface:          group.Interface,
+		FallbackInterfaces: append([]string(nil), group.FallbackInterfaces...),
+		CheckTarget:        group.CheckTarget,
+		Enable:             group.Enable,
 	}
 	if withRules {
 		groupRes.RulesRes = RespFromRules(group.Rules)

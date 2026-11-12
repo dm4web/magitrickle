@@ -8,6 +8,8 @@ export function defaultGroup(): Group {
     enable: true,
     id: randomId(),
     interface: interfaces.list.at(0)?.id ?? "",
+    fallback_interfaces: [],
+    check_target: "",
     name: "",
     color: randomDarkishColor(),
     rules: [],

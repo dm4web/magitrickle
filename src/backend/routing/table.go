@@ -258,6 +258,21 @@ func (t *Table) Apply(ruleSets []rulesets.RuleSet) error {
 	return nil
 }
 
+// ActiveInterface reports the interface actually committed for a rule set.
+// It does not expose a route that is still being prepared.
+func (t *Table) ActiveInterface(key string) (string, bool) {
+	t.applyMu.Lock()
+	defer t.applyMu.Unlock()
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	for _, e := range t.entries {
+		if e.ruleSet.Key() == key {
+			return e.ruleSet.Interface, true
+		}
+	}
+	return "", false
+}
+
 // Pending сообщает, что прошлый Apply применил не всё: какой-то набор не
 // поднялся или не наполнился. Повторный Apply с теми же наборами повторит их.
 func (t *Table) Pending() bool {

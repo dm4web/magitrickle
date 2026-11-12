@@ -97,6 +97,11 @@ func (h *Handler) NetfilterDHook(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// RoutingStatus returns current routing and link-check state for every group.
+func (h *Handler) RoutingStatus(w http.ResponseWriter, r *http.Request) {
+	utils.WriteJson(w, http.StatusOK, map[string]any{"groups": h.app.RoutingStatuses()})
+}
+
 // ListInterfaces
 //
 //	@Summary		Получить список интерфейсов

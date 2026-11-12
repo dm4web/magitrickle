@@ -48,6 +48,7 @@ type Main interface {
 	SyncSubscriptionByID(id intID.ID, now time.Time, urlOverride string) (result SubscriptionSyncResult, changed bool, err error)
 	SyncDueSubscriptions(now time.Time) (bool, error)
 	ListInterfaces() ([]models.InterfaceInfo, error)
+	RoutingStatuses() []models.GroupRoutingStatus
 	LoadConfig() error
 	SaveConfig() error
 	ForceCommitIPTables() error

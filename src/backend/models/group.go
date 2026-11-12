@@ -7,12 +7,14 @@ import (
 )
 
 type Group struct {
-	ID        intID.ID `yaml:"id"`
-	Name      string   `yaml:"name"`
-	Color     string   `yaml:"color"`
-	Interface string   `yaml:"interface"`
-	Enable    bool     `yaml:"enable"`
-	Rules     []*Rule  `yaml:"rules"`
+	ID                 intID.ID `yaml:"id"`
+	Name               string   `yaml:"name"`
+	Color              string   `yaml:"color"`
+	Interface          string   `yaml:"interface"`
+	FallbackInterfaces []string `yaml:"fallback_interfaces,omitempty"`
+	CheckTarget        string   `yaml:"check_target,omitempty"`
+	Enable             bool     `yaml:"enable"`
+	Rules              []*Rule  `yaml:"rules"`
 }
 
 // Clone возвращает копию группы с собственным срезом правил. Сами правила
@@ -20,5 +22,6 @@ type Group struct {
 func (g *Group) Clone() *Group {
 	clone := *g
 	clone.Rules = slices.Clone(g.Rules)
+	clone.FallbackInterfaces = slices.Clone(g.FallbackInterfaces)
 	return &clone
 }

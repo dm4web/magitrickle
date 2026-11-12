@@ -191,7 +191,7 @@ func (a *App) Start(ctx context.Context) (err error) {
 	}
 	workersCtx, stopWorkers := context.WithCancel(newCtx)
 	var workers sync.WaitGroup
-	workers.Add(2)
+	workers.Add(3)
 	go func() {
 		defer workers.Done()
 		for {
@@ -208,6 +208,20 @@ func (a *App) Start(ctx context.Context) (err error) {
 	go func() {
 		defer workers.Done()
 		retryLoop(workersCtx, retryRequests, routingRetryInterval, retryRoutingDebounce, a.retryRouting)
+	}()
+	go func() {
+		defer workers.Done()
+		a.refreshFailover(workersCtx)
+		ticker := time.NewTicker(failoverInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workersCtx.Done():
+				return
+			case <-ticker.C:
+				a.refreshFailover(workersCtx)
+			}
+		}
 	}()
 	// Останавливаем их раньше, чем снимется маршрутизация.
 	defer func() {

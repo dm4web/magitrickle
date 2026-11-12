@@ -61,6 +61,7 @@ func NewRouter(a app.Main) chi.Router {
 	})
 	r.Route("/system", func(r chi.Router) {
 		r.Get("/interfaces", h.ListInterfaces)
+		r.Get("/routing-status", h.RoutingStatus)
 		r.Route("/config", func(r chi.Router) {
 			r.Post("/save", h.SaveConfig)
 		})
