@@ -20,7 +20,7 @@ try {
   await expect(page.getByLabel("Сводка маршрутизации")).toContainText("Резервирование");
   console.log("PASS: groups and summary render");
 
-  await page.getByRole("button", { name: "Настроить резервные интерфейсы" }).first().click();
+  await page.getByRole("button", { name: "Настроить интерфейсы" }).first().click();
   const settings = page.getByLabel("Резервирование интерфейсов").first();
   await expect(settings).toBeVisible();
   await expect(settings).toContainText("eth1");
@@ -67,7 +67,7 @@ try {
     .toBe("9.9.9.9:443");
   await page.reload();
   await expect(page.locator(".group-wrapper")).toHaveCount(3);
-  await page.getByRole("button", { name: "Настроить резервные интерфейсы" }).first().click();
+  await page.getByRole("button", { name: "Настроить интерфейсы" }).first().click();
   await expect(
     page
       .getByLabel("Резервирование интерфейсов")
@@ -76,7 +76,8 @@ try {
   ).toHaveValue("9.9.9.9:443");
   console.log("PASS: edit/save/reload preserves group settings");
 
-  await page.locator(".theme-switch select").selectOption("light");
+  await page.locator(".theme-switch [data-select-trigger]").click();
+  await page.locator('.theme-menu [data-value="light"]').click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -88,7 +89,7 @@ try {
   console.log("PASS: light theme persists");
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Настроить резервные интерфейсы" }).first().click();
+  await page.getByRole("button", { name: "Настроить интерфейсы" }).first().click();
   const dimensions = await page.evaluate(() => ({
     viewport: window.innerWidth,
     document: document.documentElement.scrollWidth,

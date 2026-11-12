@@ -236,8 +236,10 @@
     grid-template-columns: 1rem minmax(0, 1fr) 5rem 6rem 7.5rem;
     align-items: center;
     column-gap: var(--layout-gap);
+    height: 2.75rem;
     min-height: 2.75rem;
-    padding: 0.45rem 0.75rem;
+    padding: 0 0.75rem;
+    box-sizing: border-box;
     background: var(--bg-medium);
     border: 1px solid var(--bg-light-extra);
     border-radius: 0.5rem;
@@ -298,14 +300,22 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 2rem;
-    min-height: 2rem;
-    padding: 0.3rem 0.5rem;
     border: 1px solid var(--border-light);
     border-radius: 0.4rem;
     background: var(--bg-light-extra);
     color: var(--text);
     font: inherit;
+  }
+
+  .interface-actions button {
+    box-sizing: border-box;
+    flex: 0 0 1.9rem;
+    width: 1.9rem;
+    height: 1.9rem;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    line-height: 1;
   }
 
   .interface-actions button:hover:not(:disabled),
@@ -333,6 +343,7 @@
   }
 
   .add-backup button {
+    min-height: 2rem;
     padding: 0.45rem 0.75rem;
   }
 
@@ -378,8 +389,10 @@
 
     .interface-entry {
       grid-template-columns: 1rem minmax(0, 1fr) auto;
-      gap: 0.4rem 0.6rem;
-      padding: 0.5rem 0.65rem;
+      height: 4.8rem;
+      min-height: 4.8rem;
+      gap: 0.25rem 0.6rem;
+      padding: 0.35rem 0.65rem;
     }
 
     .interface-position {

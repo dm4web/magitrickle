@@ -236,3 +236,40 @@ test("group title edits inline without full-width browser focus outline", async 
   await name.fill("Media services");
   await expect(name).toHaveValue("Media services");
 });
+
+test("primary and backup rows have identical height and square action buttons", async ({
+  page,
+}) => {
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    const group = page.locator(".group-wrapper").first();
+    await group.getByRole("button", { name: "Настроить интерфейсы" }).click();
+    const rows = group.locator(".interface-entry");
+    await expect(rows).toHaveCount(3);
+
+    const geometry = await rows.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const height = node.getBoundingClientRect().height;
+        const buttons = [...node.querySelectorAll(".interface-actions button")].map((button) => {
+          const rect = button.getBoundingClientRect();
+          return { width: rect.width, height: rect.height };
+        });
+        return { height, buttons };
+      }),
+    );
+
+    const primaryHeight = geometry[0].height;
+    expect(primaryHeight).toBeGreaterThan(40);
+    for (const row of geometry) {
+      expect(Math.abs(row.height - primaryHeight)).toBeLessThan(1);
+      for (const button of row.buttons) {
+        expect(Math.abs(button.width - button.height)).toBeLessThan(1);
+        expect(button.height).toBeLessThan(row.height);
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(
+      true,
+    );
+  }
+});
