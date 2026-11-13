@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/frontend/src/assets/logo.svg" width="132" alt="MagiTrickle" />
+  <img src="img/main_screenshot.png" alt="MagiTrickle WebUI" />
 </p>
 
 <h1 align="center">MagiTrickle</h1>
@@ -14,14 +14,6 @@
 - **`blackhole`:** выбор в качестве единственного маршрута группы блокирует её трафик.
 - **Подписки:** загрузка списков правил по URL, периодическое обновление и ручная синхронизация.
 - **WebUI:** управление группами и подписками, индикация текущего маршрута и активного резерва, статистика по кнопке, массовые действия, автосохранение и необязательная авторизация.
-
-## Интерфейс
-
-<p align="center">
-  <img src="img/main_screenshot.png" alt="MagiTrickle WebUI" />
-</p>
-
-<p align="center"><sub>Пример интерфейса с демонстрационными данными.</sub></p>
 
 ## Как это работает
 
