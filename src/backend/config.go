@@ -23,6 +23,7 @@ var colorRegExp = regexp2.MustCompile(`^#[0-9a-f]{6}$`, regexp2.IgnoreCase)
 
 const cfgFolderLocation = constant.AppStateDir
 const cfgFileLocation = cfgFolderLocation + "/config.yaml"
+const defaultConfigFileVersion = "0.7.0"
 
 // LoadConfig загружает конфиг целиком или не меняет ничего: настройки,
 // группы и подписки собираются и проверяются заранее, а подменяются вместе.
@@ -116,6 +117,7 @@ func (a *App) loadConfigFile(path string) error {
 		return err
 	}
 	a.config.Store(&next)
+	a.configFileVersion = cfg.ConfigVersion
 	return nil
 }
 
@@ -193,12 +195,7 @@ func (a *App) SaveConfig() error {
 	a.stateMu.RLock()
 	defer a.stateMu.RUnlock()
 
-	cfg := models.Config{
-		ConfigVersion: constant.Version,
-		App:           a.cfg(),
-		Groups:        &a.groups,
-		Subscriptions: &a.subscriptions,
-	}
+	cfg := a.configSnapshotLocked()
 	out, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config file: %w", err)
@@ -210,6 +207,22 @@ func (a *App) SaveConfig() error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 	return nil
+}
+
+// configSnapshotLocked must be called under stateMu.RLock (or stateMu.Lock).
+// A release named "0" must never write "configVersion: 0": older configs use
+// the independent 0.x schema and would become unreadable on the next restart.
+func (a *App) configSnapshotLocked() models.Config {
+	version := a.configFileVersion
+	if version == "" {
+		version = defaultConfigFileVersion
+	}
+	return models.Config{
+		ConfigVersion: version,
+		App:           a.cfg(),
+		Groups:        &a.groups,
+		Subscriptions: &a.subscriptions,
+	}
 }
 
 // writeFileAtomic replaces path with data so that a crash or a power cut leaves either the old or the new file, not

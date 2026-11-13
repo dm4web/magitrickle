@@ -54,6 +54,9 @@ type App struct {
 	// изменения медленного источника не ждут.
 	subscriptionSyncMu sync.Mutex
 	configSaveMu       sync.Mutex // serializes SaveConfig
+	// configFileVersion is the on-disk schema version, separate from the release tag.
+	// Protected by stateMu; preserve it when rewriting a previously loaded config.
+	configFileVersion string
 	// subscriptionRetryAt — когда повторить обновление подписки, новые
 	// правила которой не удалось применить; защищён stateMu.
 	subscriptionRetryAt map[intID.ID]time.Time
