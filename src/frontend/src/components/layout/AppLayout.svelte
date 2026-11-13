@@ -13,7 +13,7 @@
   import Toast from "../feedback/Toast.svelte";
   import HeaderSettings from "./HeaderSettings.svelte";
 
-  import { isDev, version } from "../../data/build";
+  import { version } from "../../data/build";
   import { LayoutList, Menu, RSS } from "../ui/icons";
 
   const lastActiveTab = persistedState("active_tab", "groups");
@@ -67,15 +67,12 @@
   <Tabs.Root bind:value={active_tab}>
     <nav>
       <div class="nav-left">
-        <div class="app-brand" aria-label="Magitickle Neo">
+        <div class="app-brand" aria-label="MagiTrickle Neo">
           <span class="brand-symbol">M</span>
           <span class="brand-text">
-            <span class="brand-name">Magitickle Neo</span>
+            <span class="brand-name">MagiTrickle Neo</span>
             <span class="brand-meta">
               <span class="brand-version" title={t("Build") + ": " + version}>{version}</span>
-              {#if isDev}
-                <span class="brand-channel">dev</span>
-              {/if}
             </span>
           </span>
         </div>
@@ -197,14 +194,11 @@
   .brand-version {
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
-  }
-
-  .brand-channel {
-    padding: 0.12rem 0.3rem;
+    padding: 0.22rem 0.46rem;
     border: 1px solid var(--border-light);
-    border-radius: 0.35rem;
-    color: var(--text-2);
-    font-size: 0.65rem;
+    border-radius: 0.45rem;
+    font-weight: 600;
+    color: var(--text-1);
     line-height: 1;
   }
 
@@ -282,10 +276,6 @@
   }
 
   @media (max-width: 700px) {
-    .brand-channel {
-      display: none;
-    }
-
     .brand-version {
       font-size: 0.62rem;
     }

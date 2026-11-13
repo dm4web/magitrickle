@@ -1,9 +1,8 @@
 name: Checking
 
 on:
-  # Only the isolated development branch runs push CI; never pushes to main.
   push:
-    branches: [feat/failover-ui]
+    branches: [main]
   pull_request:
     paths-ignore:
       - '**.md'
