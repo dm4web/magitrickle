@@ -1,0 +1,69 @@
+name: Entware Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/pages.yml
+      - .github/workflows/build.yml
+      - scripts/build-entware-pages.py
+  workflow_run:
+    workflows: [Release packages]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: entware-pages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish public Entware repository from main
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Download verified latest release packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          tag="$(gh api "repos/${GH_REPO}/releases/latest" --jq '.tag_name')"
+          case "$tag" in
+            ''|*[!0-9]*) echo "Invalid Neo version: $tag" >&2; exit 1 ;;
+          esac
+          mkdir -p release-assets
+          gh release download "$tag" --repo "$GH_REPO" --dir release-assets
+          (cd release-assets && sha256sum --check SHA256SUMS)
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+      - name: Generate public Entware feeds
+        run: |
+          python3 scripts/build-entware-pages.py \
+            --version "$RELEASE_TAG" \
+            --source release-assets \
+            --output public-site
+          for arch in aarch64-3.10 aarch64-3.10_kn mips-3.4_kn mipsel-3.4_kn; do
+            test -s "public-site/entware/$arch/Packages.gz"
+            gzip -t "public-site/entware/$arch/Packages.gz"
+          done
+          test -s public-site/latest.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: public-site
+      - name: Deploy public packages to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
