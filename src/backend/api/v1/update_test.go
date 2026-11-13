@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func TestReleaseCheckerVersionsAndCache(t *testing.T) {
+func TestReleaseCheckerChecksOnEveryVisit(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
@@ -34,8 +34,8 @@ func TestReleaseCheckerVersionsAndCache(t *testing.T) {
 			t.Fatalf("version %s must not show update: %+v, %v", current, status, err)
 		}
 	}
-	if requests.Load() != 1 {
-		t.Fatalf("expected cached request, got %d", requests.Load())
+	if requests.Load() != 3 {
+		t.Fatalf("expected a fresh request on every check, got %d", requests.Load())
 	}
 }
 
@@ -47,9 +47,6 @@ func TestReleaseCheckerRejectsInvalidTags(t *testing.T) {
 	checker := &releaseChecker{client: server.Client(), endpoint: server.URL}
 	if _, err := checker.check(context.Background(), "0"); err == nil || !strings.Contains(err.Error(), "unexpected Neo release tag") {
 		t.Fatalf("expected invalid tag error, got %v", err)
-	}
-	if !checker.checkedAt.IsZero() {
-		t.Fatal("invalid release should not be cached")
 	}
 }
 

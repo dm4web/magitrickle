@@ -74,17 +74,19 @@
   );
   let visibleRuleIndices = $derived(store.visibilityMap.get(group_index));
   let searchManuallyCollapsed = $state(false);
+  let searchManuallyExpanded = $state(false);
   let searchAutoExpanded = $derived(
     searchActive &&
       store.visibilityMap.has(group_index) &&
-      (Array.isArray(visibleRuleIndices)
-        ? visibleRuleIndices.length > 0
-        : (group?.rules.length ?? 0) > 0),
+      Array.isArray(visibleRuleIndices) &&
+      visibleRuleIndices.length > 0,
   );
   let effectiveOpen = $derived(
     group
       ? searchAutoExpanded
         ? !searchManuallyCollapsed
+        : searchActive && isGroupSearchMatched
+          ? searchManuallyExpanded
         : (store.open_state[group.id] ?? false)
       : false,
   );
@@ -112,15 +114,20 @@
     // Search expansion is temporary; a changed query starts with results open.
     searchQuery;
     searchManuallyCollapsed = false;
+    searchManuallyExpanded = false;
   });
 
-  function toggleOpen() {
+  function toggleOpen(nextOpen: boolean) {
     if (!group) return;
     if (searchAutoExpanded) {
-      searchManuallyCollapsed = effectiveOpen;
+      searchManuallyCollapsed = !nextOpen;
       return;
     }
-    store.open_state[group.id] = !effectiveOpen;
+    if (searchActive && isGroupSearchMatched) {
+      searchManuallyExpanded = nextOpen;
+      return;
+    }
+    store.open_state[group.id] = nextOpen;
   }
 
   function copyRulePatterns() {

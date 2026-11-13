@@ -191,6 +191,62 @@ test.describe("Groups Search", () => {
     await expect(page.locator(".rule .pattern input").first()).toHaveValue("google.com");
   });
 
+  test("group-name match expands only matching rules and keeps unrelated rules hidden", async ({
+    page,
+  }) => {
+    await page.route("**/groups?with_rules=true", (route) =>
+      route.fulfill({
+        json: {
+          groups: [{
+            id: "youtube-group", name: "YouTube", color: "#aa3300", enable: true, interface: "eth0",
+            rules: [
+              { id: "unrelated", name: "", rule: "other.example", type: "namespace", enable: true },
+              { id: "matched", name: "", rule: "youtube.com", type: "namespace", enable: true },
+            ],
+          }],
+        },
+      }),
+    );
+    await groupsPage.goto();
+
+    const group = page.locator(".group-wrapper:visible");
+    await groupsPage.search("you");
+    await expect(group).toHaveCount(1);
+    await expect(group.locator(".rule:visible")).toHaveCount(1);
+    await expect(group.locator(".rule:visible .pattern input")).toHaveValue("youtube.com");
+
+    await groupsPage.search("YouTube Group No Match");
+    await expect(page.locator(".group-wrapper:visible")).toHaveCount(0);
+  });
+
+  test("group-name match remains collapsed even if its rules were open before search", async ({
+    page,
+  }) => {
+    await page.route("**/groups?with_rules=true", (route) =>
+      route.fulfill({
+        json: {
+          groups: [{
+            id: "media", name: "Media Services", color: "#000000", enable: true, interface: "eth0",
+            rules: [{
+              id: "rule-a", name: "", rule: "example.org", type: "namespace", enable: true,
+            }],
+          }],
+        },
+      }),
+    );
+    await groupsPage.goto();
+    const group = page.locator(".group-wrapper:visible");
+    await group.locator(".group-header [data-collapsible-trigger]").click();
+    await expect(group.locator(".rule:visible")).toHaveCount(1);
+
+    await groupsPage.search("media");
+    await expect(group.locator(".group-name-search-overlay mark")).toHaveText("Media");
+    await expect(group.locator(".rule:visible")).toHaveCount(0);
+
+    await groupsPage.search("");
+    await expect(group.locator(".rule:visible")).toHaveCount(1);
+  });
+
   test("opens matching rules automatically and restores manual open state when search clears", async ({
     page,
   }) => {
@@ -251,10 +307,13 @@ test.describe("Groups Search", () => {
     await groupsPage.search("");
     await expect(group.locator(".rule:visible")).toHaveCount(2);
 
-    // Matching a group name reveals its rules immediately too.
+    // Matching a group name alone must not expand unrelated rules.
     await toggle.click();
     await expect(group.locator(".rule:visible")).toHaveCount(0);
     await groupsPage.search("Media services");
+    await expect(group.locator(".group-name-search-overlay mark")).toHaveText("Media services");
+    await expect(group.locator(".rule:visible")).toHaveCount(0);
+    await toggle.click();
     await expect(group.locator(".rule:visible")).toHaveCount(2);
     await groupsPage.search("");
     await expect(group.locator(".rule:visible")).toHaveCount(0);

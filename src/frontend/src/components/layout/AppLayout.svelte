@@ -39,7 +39,10 @@
       try {
         const headers: Record<string, string> = {};
         if (token.current) headers.Authorization = `Bearer ${token.current}`;
-        const response = await fetch("/api/v1/system/update/check", { headers });
+        const response = await fetch("/api/v1/system/update/check", {
+          headers,
+          cache: "no-store",
+        });
         if (!response.ok) return;
         const status = (await response.json()) as UpdateStatus;
         if (active && typeof status.currentVersion === "string") updateStatus = status;
@@ -49,10 +52,8 @@
     }
 
     void checkUpdate();
-    const interval = window.setInterval(() => void checkUpdate(), 60 * 60 * 1000);
     return () => {
       active = false;
-      window.clearInterval(interval);
     };
   });
 

@@ -69,6 +69,22 @@ test.describe("Header Settings", () => {
     await expect(current).toHaveCSS("color", regularColor);
   });
 
+  test("checks for updates on each WebUI visit", async ({ page }) => {
+    let requests = 0;
+    await page.route("**/system/update/check", (route) => {
+      requests += 1;
+      return route.fulfill({
+        json: { currentVersion: "2", latestVersion: "2", available: false },
+      });
+    });
+
+    await page.reload();
+    await expect.poll(() => requests).toBe(1);
+    await page.reload();
+    await expect.poll(() => requests).toBe(2);
+    await expect(page.locator(".app-brand .brand-update")).toHaveCount(0);
+  });
+
   test("should rotate locale", async ({ page }) => {
     const localeBtn = page.locator(".locale button");
 

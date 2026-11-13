@@ -576,10 +576,10 @@ export class GroupsStore {
       const isForcedGroup = this.#forcedGroupIds.has(indexedGroup.id);
       const isGroupMatchedByName = indexedGroup.nameLower.includes(query);
 
-      if (isForcedGroup || isGroupMatchedByName) {
-        if (isGroupMatchedByName) {
-          matchedGroupIds.add(indexedGroup.id);
-        }
+      if (isGroupMatchedByName) {
+        matchedGroupIds.add(indexedGroup.id);
+      }
+      if (isForcedGroup) {
         nextVisible.push({ group_index: i, ruleIndices: null });
         continue;
       }
@@ -609,6 +609,9 @@ export class GroupsStore {
 
       if (matchedRuleIndices.length > 0) {
         nextVisible.push({ group_index: i, ruleIndices: matchedRuleIndices });
+      } else if (isGroupMatchedByName) {
+        // Show a matching group header, but do not expand unrelated rules.
+        nextVisible.push({ group_index: i, ruleIndices: null });
       }
     }
 
