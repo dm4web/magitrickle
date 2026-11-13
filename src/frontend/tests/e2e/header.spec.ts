@@ -57,6 +57,16 @@ test.describe("Header Settings", () => {
     await page.reload();
     await expect(current).toHaveText("1");
     await expect(arrow).toHaveCount(0);
+    await expect(current).not.toHaveClass(/has-update/);
+    const regularColor = await page.evaluate(() => {
+      const sample = document.createElement("span");
+      sample.style.color = "var(--text-2)";
+      document.body.appendChild(sample);
+      const color = getComputedStyle(sample).color;
+      sample.remove();
+      return color;
+    });
+    await expect(current).toHaveCSS("color", regularColor);
   });
 
   test("should rotate locale", async ({ page }) => {

@@ -46,6 +46,19 @@ opkg install /opt/tmp/magitrickle.ipk
 
 После запуска WebUI по умолчанию доступен по адресу `http://<IP-маршрутизатора>:8080`. Основной конфигурационный файл: `/opt/var/lib/magitrickle/config.yaml`. В стандартной конфигурации авторизация WebUI **выключена**: включите её перед доступом из недоверенных сетей и не открывайте порт напрямую в интернет.
 
+### Собственный репозиторий Entware
+
+При выпуске новых версий GitHub Actions собирает IPK и публикует их в публичном репозитории пакетов на GitHub Pages. Исходный GitHub-репозиторий остаётся приватным. Адреса пакетов:
+
+- `https://dm4web.github.io/magitrickle/entware/aarch64-3.10`
+- `https://dm4web.github.io/magitrickle/entware/aarch64-3.10_kn`
+- `https://dm4web.github.io/magitrickle/entware/mips-3.4_kn`
+- `https://dm4web.github.io/magitrickle/entware/mipsel-3.4_kn`
+
+Каждый каталог содержит IPK, `Packages`, `Packages.gz` и `SHA256SUMS`. Индекс версии расположен по адресу `https://dm4web.github.io/magitrickle/latest.json`. WebUI сверяет его с версией запущенного backend и показывает зелёный номер со стрелкой вверх только при доступности более новой версии. Проверка обновлений ничего не устанавливает автоматически.
+
+Для первой публикации нужно один раз выбрать в GitHub **Settings → Pages → Build and deployment → Source: GitHub Actions**. Если Pages для приватных репозиториев недоступен на тарифе GitHub, требуется отдельный публичный репозиторий только для артефактов; делать исходный код публичным не требуется.
+
 ## Типы правил
 
 ### Namespace — домен и поддомены

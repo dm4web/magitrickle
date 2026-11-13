@@ -25,7 +25,7 @@ func TestReleaseCheckerVersionsAndCache(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !status.Available || status.CurrentVersion != "0" || status.LatestVersion != "1" || status.ReleaseURL != githubNeoReleaseBase+"1" {
+	if !status.Available || status.CurrentVersion != "0" || status.LatestVersion != "1" || status.ReleaseURL != githubNeoReleaseBase {
 		t.Fatalf("wrong update status: %+v", status)
 	}
 	for _, current := range []string{"1", "2"} {

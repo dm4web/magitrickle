@@ -18,7 +18,7 @@ const (
 	// A private GitHub repo's Releases API returns HTTP 404 without a token.
 	// This public JSON feed is intended to be published through GitHub Pages.
 	githubLatestNeoRelease = "https://dm4web.github.io/magitrickle/latest.json"
-	githubNeoReleaseBase   = "https://github.com/dm4web/magitrickle/releases/tag/"
+	githubNeoReleaseBase   = "https://dm4web.github.io/magitrickle/"
 	updateCheckCacheTTL    = 30 * time.Minute
 )
 
@@ -94,7 +94,7 @@ func (c *releaseChecker) check(ctx context.Context, current string) (updateStatu
 	status.LatestVersion = c.latest
 	status.Available = latest > installed
 	if status.Available {
-		status.ReleaseURL = githubNeoReleaseBase + c.latest
+		status.ReleaseURL = githubNeoReleaseBase
 	}
 	return status, nil
 }

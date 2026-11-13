@@ -112,7 +112,10 @@
           <span class="brand-text">
             <span class="brand-name">MagiTrickle Neo</span>
             <span class="brand-meta">
-              <span class="brand-version" title={t("Build") + ": " + displayedVersion}
+              <span
+                class="brand-version"
+                class:has-update={!!(updateStatus?.available && updateStatus.releaseUrl)}
+                title={t("Build") + ": " + displayedVersion}
                 >{displayedVersion}</span
               >
               {#if updateStatus?.available && updateStatus.releaseUrl}
@@ -252,8 +255,12 @@
     border: 1px solid var(--border-light);
     border-radius: 0.45rem;
     font-weight: 600;
-    color: var(--color-success);
+    color: var(--text-2);
     line-height: 1;
+  }
+
+  .brand-version.has-update {
+    color: var(--color-success);
   }
 
   .brand-update {

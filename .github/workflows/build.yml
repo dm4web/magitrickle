@@ -55,11 +55,12 @@ jobs:
           def enabled(name):
               return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
-          # Always build Keenetic-specific Entware packages.
+          # Always include the standard aarch64 feed and Keenetic variants.
           files = sorted(Path("config/entware").glob("*_kn.config"))
+          files.append(Path("config/entware/aarch64-3.10.config"))
           if enabled("BUILD_ENTWARE_GENERIC"):
               files += sorted(p for p in Path("config/entware").glob("*.config")
-                              if not p.stem.endswith("_kn"))
+                            if not p.stem.endswith("_kn") and p.stem != "aarch64-3.10")
           if enabled("BUILD_OPENWRT"):
               files += sorted(Path("config/openwrt").glob("*.config"))
           if not files:
@@ -259,3 +260,44 @@ jobs:
               --title "MagiTrickle Neo $RELEASE_TAG" \
               --notes "MagiTrickle Neo $RELEASE_TAG. Keenetic Entware packages and SHA256SUMS."
           fi
+
+  pages:
+    name: Publish public Entware repository
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: release-assets
+          merge-multiple: true
+      - name: Generate public Entware feeds
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 scripts/build-entware-pages.py \
+            --version "$RELEASE_TAG" \
+            --source release-assets \
+            --output public-site
+          for arch in aarch64-3.10 aarch64-3.10_kn mips-3.4_kn mipsel-3.4_kn; do
+            test -s "public-site/entware/$arch/Packages.gz"
+            gzip -t "public-site/entware/$arch/Packages.gz"
+          done
+          test -s public-site/latest.json
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: public-site
+      - name: Deploy public packages to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
