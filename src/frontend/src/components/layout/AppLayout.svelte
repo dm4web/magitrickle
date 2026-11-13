@@ -13,6 +13,7 @@
   import ScrollToTop from "../feedback/ScrollToTop.svelte";
   import SnowField from "../feedback/SnowField.svelte";
   import Toast from "../feedback/Toast.svelte";
+  import GenericDialog from "../ui/GenericDialog.svelte";
   import HeaderSettings from "./HeaderSettings.svelte";
 
   import { version } from "../../data/build";
@@ -26,10 +27,16 @@
   };
 
   let updateStatus = $state<UpdateStatus | null>(null);
+  let updateDialogOpen = $state(false);
   const displayedVersion = $derived(
     updateStatus?.currentVersion && /^\d+$/.test(updateStatus.currentVersion)
       ? updateStatus.currentVersion
       : version,
+  );
+  const latestNeoVersion = $derived(
+    updateStatus?.latestVersion && /^\d+$/.test(updateStatus.latestVersion)
+      ? updateStatus.latestVersion
+      : null,
   );
 
   onMount(() => {
@@ -100,6 +107,32 @@
 <Toast />
 <Overlay />
 <ScrollToTop />
+<GenericDialog
+  open={updateDialogOpen}
+  title={t("Update available")}
+  maxWidth={410}
+  on:close={() => (updateDialogOpen = false)}
+>
+  <div slot="body" class="update-details">
+    <div class="update-version-row">
+      <span>{t("Installed version")}</span>
+      <strong>{displayedVersion}</strong>
+    </div>
+    <div class="update-version-row">
+      <span>{t("New version")}</span>
+      <strong class="update-new-version">{latestNeoVersion ?? "—"}</strong>
+    </div>
+    <p>{t("Updating from WebUI is not available yet. Install the package through Entware.")}</p>
+    {#if latestNeoVersion}
+      <a
+        class="update-release-link"
+        href={`https://github.com/dm4web/magitrickle/releases/tag/${latestNeoVersion}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >{t("View release")}</a>
+    {/if}
+  </div>
+</GenericDialog>
 {#if [11, 0, 1].includes(new Date().getMonth())}
   <SnowField visible={isRenderComplete} />
 {/if}
@@ -119,17 +152,16 @@
                 title={t("Build") + ": " + displayedVersion}
                 >{displayedVersion}</span
               >
-              {#if updateStatus?.available && updateStatus.releaseUrl}
-                <a
+              {#if updateStatus?.available && latestNeoVersion}
+                <button
+                  type="button"
                   class="brand-update"
-                  href={updateStatus.releaseUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   title={`${t("Update available")}: ${updateStatus.latestVersion}`}
                   aria-label={`${t("Update available")}: ${updateStatus.latestVersion}`}
+                  onclick={() => (updateDialogOpen = true)}
                 >
                   <ArrowUp size={16} strokeWidth={2.5} />
-                </a>
+                </button>
               {/if}
             </span>
           </span>
@@ -270,10 +302,49 @@
     justify-content: center;
     color: var(--color-success);
     text-decoration: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
   }
 
   .brand-update:hover {
     color: var(--color-accent);
+  }
+
+  .update-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    margin-top: 1rem;
+  }
+
+  .update-version-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  .update-version-row strong {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .update-new-version {
+    color: var(--color-success);
+  }
+
+  .update-details p {
+    color: var(--text-2);
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .update-release-link {
+    align-self: flex-start;
+    color: var(--accent);
+    text-decoration: underline;
+    font-size: 0.9rem;
   }
 
   .brand-symbol {

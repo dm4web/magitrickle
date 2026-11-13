@@ -46,10 +46,19 @@ test.describe("Header Settings", () => {
     await expect(current).toHaveCSS("color", successColor);
     const arrow = page.locator(".app-brand .brand-update");
     await expect(arrow).toBeVisible();
-    await expect(arrow).toHaveAttribute(
+    await expect(arrow).not.toHaveAttribute("href", /./);
+    await arrow.click();
+    const updateDialog = page.locator('[data-dialog-content][data-state="open"]');
+    await expect(updateDialog).toBeVisible();
+    await expect(updateDialog.getByText("Installed version")).toBeVisible();
+    await expect(updateDialog.getByText("New version")).toBeVisible();
+    await expect(updateDialog.getByText("Updating from WebUI is not available yet.", { exact: false })).toBeVisible();
+    await expect(updateDialog.getByRole("link", { name: "View release" })).toHaveAttribute(
       "href",
       "https://github.com/dm4web/magitrickle/releases/tag/1",
     );
+    await page.keyboard.press("Escape");
+    await expect(updateDialog).not.toBeVisible();
 
     await page.route("**/system/update/check", (route) =>
       route.fulfill({ json: { currentVersion: "1", latestVersion: "1", available: false } }),
