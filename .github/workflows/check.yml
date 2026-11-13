@@ -168,7 +168,7 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: |
           cp "config/entware/$TARGET.config" .config
-          make FRONTEND_PREBUILT=1 PKG_VERSION="0.0.0~ci.$(git rev-parse --short HEAD)" package
+          make FRONTEND_PREBUILT=1 PKG_VERSION=0 package
       - name: Check IPK without executing installation scripts
         env:
           TARGET: ${{ matrix.target }}
@@ -176,7 +176,7 @@ jobs:
           pkg="$(find .build -maxdepth 1 -type f -name "magitrickle_*_entware_$TARGET.ipk" -print -quit)"
           test -n "$pkg"
           test -s "$pkg"
-          python3 e2e/verify-keenetic-ipk.py --target "$TARGET" "$pkg"
+          python3 e2e/verify-keenetic-ipk.py --target "$TARGET" --version 0 "$pkg"
           sha256sum "$pkg"
       - uses: actions/upload-artifact@v4
         with:

@@ -45,7 +45,7 @@ def members(tar: tarfile.TarFile):
     return result
 
 
-def verify(path: Path, target: str) -> None:
+def verify(path: Path, target: str, version: str | None = None) -> None:
     ensure(path.is_file(), f"missing package: {path}")
     ensure(target in TARGET_ELF, f"unknown target: {target}")
     with tarfile.open(path, "r:gz") as package:
@@ -65,6 +65,8 @@ def verify(path: Path, target: str) -> None:
 
             config = control.extractfile("./control").read().decode()
             ensure(f"Architecture: {target}\n" in config, "wrong Entware architecture")
+            if version is not None:
+                ensure(f"Version: {version}\n" in config, f"wrong package version (expected {version})")
             ensure("Depends: libc, iptables, socat\n" in config, "missing Keenetic dependencies")
             for name in control.extractfile("./conffiles").read().decode().splitlines():
                 ensure("." + name in payload, f"conffile missing: {name}")
@@ -93,6 +95,7 @@ def verify(path: Path, target: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", choices=sorted(TARGET_ELF), required=True)
+    parser.add_argument("--version")
     parser.add_argument("package", type=Path)
     args = parser.parse_args()
-    verify(args.package, args.target)
+    verify(args.package, args.target, args.version)

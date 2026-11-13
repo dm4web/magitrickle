@@ -22,6 +22,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.release.tag_name }}
+      - name: Verify Neo release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          case "$RELEASE_TAG" in
+            ''|*[!0-9]*) echo "Neo release tag must be a single non-negative integer" >&2; exit 1 ;;
+          esac
       - id: matrix
         name: Build target matrix
         env:
@@ -178,6 +185,7 @@ jobs:
         env:
           TARGET_NAME: ${{ matrix.name }}
           PLATFORM: ${{ matrix.platform }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           mkdir -p release-output
           find .build -maxdepth 1 -type f \( -name 'magitrickle_*.ipk' -o -name 'magitrickle_*.apk' \) -exec cp -t release-output -- {} +
@@ -185,6 +193,10 @@ jobs:
           if [ "$PLATFORM" = "openwrt" ]; then
             test "$(find release-output -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
             cp "$RUNNER_TEMP/magitrickle.pub" "release-output/${TARGET_NAME}.pub"
+          fi
+          if [ "$PLATFORM" = "entware" ] && [ "${TARGET_NAME#entware-}" != "$TARGET_NAME" ] && [ "${TARGET_NAME%_kn}" != "$TARGET_NAME" ]; then
+            pkg="$(find release-output -maxdepth 1 -type f -name '*.ipk' -print -quit)"
+            python3 e2e/verify-keenetic-ipk.py --target "${TARGET_NAME#entware-}" --version "$RELEASE_TAG" "$pkg"
           fi
           ls -lh release-output
       - uses: actions/upload-artifact@v4

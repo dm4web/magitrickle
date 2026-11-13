@@ -42,6 +42,9 @@ ifeq ($(strip $(PKG_VERSION_DISPLAY)),)
 endif
 PKG_VERSION_APK := $(shell echo "$(PKG_VERSION)" | sed -E 's/~git([0-9]+)\.[^.]+$$/_pre\1/')
 PKG_REVISION ?= 1
+# Neo releases are numbered 0, 1, 2, ... without a package revision suffix.
+# Retain the legacy revision format for non-integer development versions.
+PKG_VERSION_IPK := $(if $(shell printf '%s\n' "$(PKG_VERSION)" | grep -E '^[0-9]+$$'),$(PKG_VERSION),$(PKG_VERSION)-$(PKG_REVISION))
 
 # Export variables for recursive make executions
 
@@ -273,7 +276,7 @@ package_ipk: prepare_files
 
 	mkdir -p $(IPK_CONTROL_DIR)
 	echo 'Package: $(PKG_NAME)' > $(IPK_CONTROL_DIR)/control
-	echo 'Version: $(PKG_VERSION)-$(PKG_REVISION)' >> $(IPK_CONTROL_DIR)/control
+	echo 'Version: $(PKG_VERSION_IPK)' >> $(IPK_CONTROL_DIR)/control
 	echo 'Architecture: $(TARGET)' >> $(IPK_CONTROL_DIR)/control
 	echo 'License: $(PKG_LICENSE)' >> $(IPK_CONTROL_DIR)/control
 	echo 'URL: $(PKG_URL)' >> $(IPK_CONTROL_DIR)/control
@@ -294,7 +297,7 @@ endif
 
 	tar -C "$(IPK_CONTROL_DIR)" -czvf "$(IPK_DIR)/control.tar.gz" --owner=0 --group=0 .
 	tar -C "$(ROOT_DIR)" -czvf "$(IPK_DIR)/data.tar.gz" --owner=0 --group=0 .
-	tar -C "$(IPK_DIR)" -czvf "$(BUILDS_DIR)/$(PKG_NAME)_$(PKG_VERSION)-$(PKG_REVISION)_$(UNIQUE_NAME).ipk" --owner=0 --group=0 ./debian-binary ./control.tar.gz ./data.tar.gz
+	tar -C "$(IPK_DIR)" -czvf "$(BUILDS_DIR)/$(PKG_NAME)_$(PKG_VERSION_IPK)_$(UNIQUE_NAME).ipk" --owner=0 --group=0 ./debian-binary ./control.tar.gz ./data.tar.gz
 
 package_apk: prepare_files $(BUILD_KEY_APK_SEC)
 	rm -rf $(ROOT_APK_DIR)
