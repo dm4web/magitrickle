@@ -32,7 +32,14 @@ async function setupSubscriptions(page: Page, data: Subscription[]) {
     route.fulfill({ json: { groups: [] } }),
   );
   await page.route("**/interfaces", async (route) =>
-    route.fulfill({ json: { interfaces: ["eth0", "wlan0"] } }),
+    route.fulfill({
+      json: {
+        interfaces: [
+          { id: "eth0", name: "Main WAN" },
+          { id: "wlan0", name: "Wi-Fi" },
+        ],
+      },
+    }),
   );
   await page.route("**/subscriptions", async (route) => {
     if (route.request().method() === "PUT") {
@@ -83,6 +90,51 @@ async function setupSubscriptions(page: Page, data: Subscription[]) {
 }
 
 test.describe("Subscriptions", () => {
+  test("subscription header keeps metadata together and actions aligned on desktop and mobile", async ({
+    page,
+  }) => {
+    await setupSubscriptions(page, [
+      makeSubscription("a1b2c3d4", "https://example.com/demo-rules", "Тестовая подписка"),
+    ]);
+
+    for (const width of [1440, 900, 390, 360]) {
+      await page.setViewportSize({ width, height: 860 });
+      const dimensions = await page
+        .locator(".subscription-panel")
+        .first()
+        .evaluate((element) => {
+          const rect = (selector: string) => {
+            const node = element.querySelector(selector);
+            if (!node) throw new Error("Missing subscription element " + selector);
+            return node.getBoundingClientRect();
+          };
+          return {
+            nameY: rect(".subscription-name").y,
+            actionsY: rect(".subscription-actions").y,
+            urlY: rect(".url-line").y,
+            updateY: rect(".update-line").y,
+            interfaceHeight: rect(".subscription-interface").height,
+            overflow: document.documentElement.scrollWidth - window.innerWidth,
+          };
+        });
+
+      expect(dimensions.overflow).toBeLessThanOrEqual(1);
+      expect(dimensions.interfaceHeight).toBeLessThanOrEqual(40);
+      if (width > 700) {
+        expect(Math.abs(dimensions.nameY - dimensions.actionsY)).toBeLessThan(12);
+        expect(Math.abs(dimensions.urlY - dimensions.updateY)).toBeLessThan(4);
+      } else {
+        expect(dimensions.actionsY).toBeGreaterThan(dimensions.updateY);
+      }
+    }
+
+    await page.setViewportSize({ width: 1440, height: 860 });
+    const selector = page.locator(".subscription-panel .action.interface [data-select-trigger]");
+    await selector.click();
+    await page.getByRole("option", { name: "wlan0" }).click();
+    await expect(selector).toContainText("wlan0");
+  });
+
   test("edits an existing subscription URL and saves it", async ({ page }) => {
     const state = await setupSubscriptions(page, [
       makeSubscription("a1b2c3d4", "https://old.example/list.txt"),

@@ -7,10 +7,9 @@
   import Pagination from "../../../components/Pagination.svelte";
   import Button from "../../../components/ui/Button.svelte";
   import DropdownMenu from "../../../components/ui/DropdownMenu.svelte";
-  import Select from "../../../components/ui/Select.svelte";
+  import EditableField from "../../../components/ui/EditableField.svelte";
   import Switch from "../../../components/ui/Switch.svelte";
   import Tooltip from "../../../components/ui/Tooltip.svelte";
-  import { interfaces } from "../../../data/interfaces.svelte";
   import { t } from "../../../data/locale.svelte";
   import { routingStatus } from "../../../data/routing-status.svelte";
   import { GROUPS_STORE_CONTEXT, type GroupsStore } from "../groups.svelte";
@@ -31,6 +30,7 @@
     SortDesc,
     SortNeutral,
   } from "../../../components/ui/icons";
+  import { routeIndicator } from "../../../data/route-indicator";
   import { draggable, droppable } from "../../../lib/dnd";
   import { type Rule } from "../../../types";
   import { copyRulePatternsToClipboard } from "../../../utils/copy-rule-patterns";
@@ -72,15 +72,39 @@
       ? store.getSearchHighlightParts(group.name ?? "", searchQuery)
       : undefined,
   );
-  let hasGroupNameSearchHighlight = $derived(Boolean(groupNameHighlightParts));
   let visibleRuleIndices = $derived(store.visibilityMap.get(group_index));
-  let effectiveOpen = $derived(group ? (store.open_state[group.id] ?? false) : false);
+  let searchManuallyCollapsed = $state(false);
+  let searchAutoExpanded = $derived(
+    searchActive &&
+      store.visibilityMap.has(group_index) &&
+      (Array.isArray(visibleRuleIndices)
+        ? visibleRuleIndices.length > 0
+        : (group?.rules.length ?? 0) > 0),
+  );
+  let effectiveOpen = $derived(
+    group
+      ? searchAutoExpanded
+        ? !searchManuallyCollapsed
+        : (store.open_state[group.id] ?? false)
+      : false,
+  );
   let duplicateConflicts = $derived(group ? store.getDuplicateConflictsForGroup(group.id) : []);
   let showFailoverSettings = $state(false);
   let liveRouting = $derived(routingStatus.groups.find((entry) => entry.id === group?.id));
+  let routeView = $derived(routeIndicator(liveRouting, group?.enable ?? false));
+
+  $effect(() => {
+    // Search expansion is temporary; a changed query starts with results open.
+    searchQuery;
+    searchManuallyCollapsed = false;
+  });
 
   function toggleOpen() {
     if (!group) return;
+    if (searchAutoExpanded) {
+      searchManuallyCollapsed = effectiveOpen;
+      return;
+    }
     store.open_state[group.id] = !effectiveOpen;
   }
 
@@ -357,29 +381,13 @@
 
           <div class="group-name-wrap">
             <div class="group-name-field">
-              <input
-                type="text"
+              <EditableField
+                kind="group"
                 placeholder={t("group name...")}
-                class="group-name"
-                class:search-text-hidden={hasGroupNameSearchHighlight}
-                class:has-warning={duplicateConflicts.length > 0}
                 bind:value={group.name}
+                highlightParts={groupNameHighlightParts}
+                warning={duplicateConflicts.length > 0}
               />
-              {#if hasGroupNameSearchHighlight && groupNameHighlightParts}
-                <div
-                  class="search-highlight-overlay group-name-search-overlay"
-                  class:has-warning={duplicateConflicts.length > 0}
-                  aria-hidden="true"
-                >
-                  {#each groupNameHighlightParts as part}
-                    {#if part.matched}
-                      <mark>{part.text}</mark>
-                    {:else}
-                      {part.text}
-                    {/if}
-                  {/each}
-                </div>
-              {/if}
             </div>
             {#if duplicateConflicts.length > 0}
               <GroupDuplicateMenu
@@ -392,31 +400,16 @@
         </div>
 
         <div class="group-actions">
-          <Select
-            options={interfaces.list.map((item) => ({
-              value: item.id,
-              label: item.id,
-              description: item.name,
-            }))}
-            bind:selected={group.interface}
-          />
-          {#if (group.fallback_interfaces?.length ?? 0) > 0}
-            <span
-              class="route-status"
-              class:route-degraded={liveRouting?.active_interface === "blackhole"}
-              title={liveRouting
-                ? t("Current choice: {interface}", { interface: liveRouting.active_interface })
-                : t("Waiting for routing status")}
-            >
-              {liveRouting && !liveRouting.applied
-                ? t("Not applied")
-                : liveRouting?.active_interface === "blackhole"
-                  ? t("Blocked")
-                  : (liveRouting?.active_interface ?? "…")}
-            </span>
-          {:else}
-            <span class="route-status route-placeholder" aria-hidden="true"></span>
-          {/if}
+          <span
+            class="route-status"
+            class:route-healthy={routeView.kind === "healthy"}
+            class:route-degraded={routeView.kind === "error"}
+            class:route-neutral={routeView.kind === "pending" || routeView.kind === "disabled"}
+            title={liveRouting
+              ? t("Current choice: {interface}", { interface: liveRouting.active_interface || "—" })
+              : t("Waiting for routing status")}
+            aria-label={t(routeView.label)}>{t(routeView.label)}</span
+          >
           <Tooltip value={t(group.enable ? "Disable Group" : "Enable Group")}>
             <Switch class="enable-group" bind:checked={group.enable} />
           </Tooltip>
@@ -594,16 +587,13 @@
     color: var(--green);
     font-size: 0.78rem;
     font-weight: 600;
-    max-width: 7rem;
+    max-width: 12rem;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .route-status.route-degraded {
     color: var(--red);
-  }
-  .route-status.route-placeholder {
-    visibility: hidden;
   }
   .group {
     & {
@@ -680,53 +670,6 @@
     color: var(--text);
   }
 
-  .group-name {
-    & {
-      appearance: none;
-      display: block;
-      field-sizing: content;
-      width: auto;
-      min-width: 7ch;
-      max-width: 100%;
-      padding: 0.2rem 0.25rem;
-      border: 1px solid transparent;
-      border-radius: 0.45rem;
-      outline: none;
-      box-shadow: none;
-      background: transparent;
-      font-size: 1.3rem;
-      font-weight: 600;
-      font-family: var(--font);
-      color: var(--text);
-      line-height: 1.25;
-      position: relative;
-      box-sizing: border-box;
-      transition:
-        background-color 150ms ease,
-        border-color 150ms ease;
-    }
-
-    &.has-warning {
-      padding-right: 2.2rem;
-    }
-
-    &:hover:not(:focus) {
-      background: color-mix(in srgb, var(--accent) 5%, transparent);
-    }
-
-    &:focus,
-    &:focus-visible {
-      outline: none;
-      box-shadow: none;
-      background: color-mix(in srgb, var(--accent) 8%, var(--bg-light));
-      border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-    }
-
-    &::selection {
-      background: color-mix(in srgb, var(--accent) 24%, transparent);
-    }
-  }
-
   .group-name-wrap {
     display: flex;
     position: relative;
@@ -754,59 +697,10 @@
     flex: 0 1 auto;
   }
 
-  .search-highlight-overlay {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    pointer-events: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: pre;
-    color: var(--text);
-    padding: 0;
-    margin: 0;
-    box-sizing: border-box;
-  }
-
-  .search-highlight-overlay.has-warning {
-    padding-right: 2.2rem;
-  }
-
-  .group-name-search-overlay {
-    padding: 0.2rem 0.25rem;
-    font: 600 1.3rem/1.25 var(--font);
-  }
-
-  .search-highlight-overlay mark {
-    background: color-mix(in oklab, var(--yellow) 34%, transparent);
-    box-shadow:
-      inset 0 0 0 1px color-mix(in oklab, var(--yellow) 62%, transparent),
-      0 1px 0 color-mix(in oklab, var(--yellow) 30%, transparent);
-    color: inherit;
-    border-radius: 0.22rem;
-  }
-
-  .group-name.search-text-hidden {
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-    caret-color: var(--text);
-  }
-
-  .group-name.search-text-hidden:focus,
-  .group-name.search-text-hidden:focus-visible {
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-  }
-
-  .group-name:focus + .search-highlight-overlay,
-  .group-name:focus-visible + .search-highlight-overlay {
-    display: none;
-  }
-
   .group-actions {
     & {
       display: grid;
-      grid-template-columns: 8.4rem 3.2rem 2rem repeat(6, 2.2rem);
+      grid-template-columns: 12rem 2rem repeat(6, 2.2rem);
       align-items: center;
       justify-content: end;
       flex: 0 0 auto;
@@ -814,25 +708,25 @@
     }
   }
 
-  .group-actions :global(.select-wrap) {
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-  }
-
-  .group-actions :global([data-select-trigger]),
-  .group-actions :global(.selected) {
-    width: 100%;
-  }
-
-  .group-actions :global(.selected-text) {
-    flex: 1 1 auto;
-  }
-
   .group-actions .route-status {
-    justify-self: center;
-    text-align: center;
+    justify-self: end;
+    text-align: right;
+    margin-right: 0.45rem;
     min-width: 0;
+    font-weight: 600;
+    font-size: 0.84rem;
+  }
+
+  .group-actions .route-healthy {
+    color: var(--green);
+  }
+
+  .group-actions .route-degraded {
+    color: var(--red);
+  }
+
+  .group-actions .route-neutral {
+    color: var(--text-2);
   }
 
   .group-actions :global([role="tooltip"] > button:not([data-switch-root])),
@@ -962,15 +856,10 @@
       margin-left: 2rem;
     }
 
-    .group-actions .route-placeholder {
-      display: none;
-    }
-
-    :global(.group-actions > *:nth-child(1)) {
-      margin-right: auto;
-      width: 150px;
-      min-width: 0;
-      flex: 1 1 6rem;
+    .group-actions .route-status {
+      margin-right: 0.45rem;
+      flex: 0 1 auto;
+      text-align: right;
     }
 
     .group-rules-header {

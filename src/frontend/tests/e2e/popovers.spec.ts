@@ -1,18 +1,32 @@
 import { expect, test } from "@playwright/test";
 
-import { GroupsPage } from "./pages/GroupsPage";
-
 for (const viewport of [
   { width: 1280, height: 900 },
   { width: 540, height: 800 },
 ]) {
-  test(`interface list stays clickable over the next group (${viewport.width}px)`, async ({
+  test(`subscription interface list stays clickable over the next card (${viewport.width}px)`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
     await page.route("**/auth", (route) => route.fulfill({ json: { enabled: false } }));
     await page.route("**/groups?with_rules=true", (route) =>
       route.fulfill({ json: { groups: [] } }),
+    );
+    await page.route("**/subscriptions", (route) =>
+      route.fulfill({
+        json: {
+          subscriptions: ["sub-0001", "sub-0002"].map((id, index) => ({
+            id,
+            name: `Subscription ${index + 1}`,
+            url: `https://example.com/${index + 1}.txt`,
+            interface: "eth0",
+            enable: true,
+            interval: 86400,
+            lastUpdate: 0,
+            rules: [],
+          })),
+        },
+      }),
     );
     await page.route("**/interfaces", (route) =>
       route.fulfill({
@@ -24,33 +38,36 @@ for (const viewport of [
         },
       }),
     );
-    const groups = new GroupsPage(page);
-    await groups.goto();
-    await groups.createGroup();
-    await groups.createGroup();
 
-    const trigger = page.locator(".group-header [data-select-trigger]").first();
+    await page.goto("/");
+    if (viewport.width <= 700) await page.locator(".mobile-dropdown-btn").click();
+    await page.getByRole("tab", { name: "Subscriptions" }).click();
+    await expect(page.locator(".subscription-panel")).toHaveCount(2);
+
+    const trigger = page
+      .locator(".subscription-panel .action.interface [data-select-trigger]")
+      .first();
     await trigger.click();
     const list = page.getByRole("listbox");
     await expect(list).toBeVisible();
-    // Visibility alone misses clipping and overlapping siblings: hit-test the
-    // portion of the popup that extends into the next group's rectangle.
+
+    // The popup must remain clickable even when it covers the next card.
+    const option = page.getByRole("option", { name: "eth4", exact: true });
+    await expect(option).toBeVisible();
     await expect
-      .poll(async () =>
-        list.evaluate((element) => {
-          const next = document.querySelectorAll(".group")[1].getBoundingClientRect();
-          const popup = element.getBoundingClientRect();
-          const x = Math.max(popup.left, next.left) + 8;
-          const y = Math.max(popup.top, next.top) + 8;
-          return (
-            y < Math.min(popup.bottom, next.bottom) &&
-            element.contains(document.elementFromPoint(x, y))
+      .poll(() =>
+        option.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2,
           );
+          return Boolean(hit && (element === hit || element.contains(hit)));
         }),
       )
       .toBe(true);
 
-    await page.getByRole("option", { name: "eth4 Network 4", exact: true }).click();
+    await option.click();
     await expect(trigger).toContainText("eth4");
     await expect(list).toHaveCount(0);
     await trigger.click();

@@ -5,6 +5,7 @@
   import SelectionFrame from "../../components/bulk/SelectionFrame.svelte";
   import PageControls from "../../components/layout/PageControls.svelte";
   import Placeholder from "../../components/ui/Placeholder.svelte";
+  import { autosave } from "../../data/autosave.svelte";
   import { t } from "../../data/locale.svelte";
   import { fetchRoutingStatus, routingStatus } from "../../data/routing-status.svelte";
   import GroupPanel from "./components/GroupPanel.svelte";
@@ -215,6 +216,17 @@
     ).length,
   );
 
+  $effect(() => {
+    const enabled = autosave.current;
+    const revision = store.tracker.changeVersion;
+    const ready = store.dataLoaded && !store.fetchError && store.canSave;
+    const busy = store.saving;
+    const failedRevision = store.failedSaveRevision;
+    if (!enabled || !ready || busy || failedRevision === revision) return;
+    const timer = window.setTimeout(() => void store.saveChanges(true), 2000);
+    return () => window.clearTimeout(timer);
+  });
+
   onMount(() => {
     void store.mount();
     void fetchRoutingStatus().catch((error) => console.error("Routing status:", error));
@@ -257,6 +269,10 @@
     controlsClass="group-controls"
     addLabel={t("Add Group")}
     canSave={store.canSave}
+    isDirty={store.tracker.isDirty}
+    saveFailed={store.saveState === "error" &&
+      store.failedSaveRevision === store.tracker.changeVersion}
+    saveState={store.saveState}
     exportLabel={t("Export Config")}
     importLabel={t("Import Config")}
     onAdd={() => store.addGroup()}

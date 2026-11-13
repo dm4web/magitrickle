@@ -92,6 +92,10 @@ export class SubscriptionsStore {
   });
   valid_subscription_urls = $derived(this.subscriptionUrlErrors.size === 0);
   canSave = $derived(this.tracker.isDirty && this.valid_rules && this.valid_subscription_urls);
+  saving = $state(false);
+  saveState = $state<"idle" | "saving" | "saved" | "error">("idle");
+  failedSaveRevision = $state<number | null>(null);
+  #savePromise: Promise<boolean> | null = null;
 
   open_state = $state<Record<string, boolean>>({});
 
@@ -382,25 +386,46 @@ export class SubscriptionsStore {
     this.searchPending = false;
   }
 
-  saveChanges() {
-    if (!this.canSave) return;
-    overlay.show(t("saving changes..."));
-
+  async saveChanges(automatic = false): Promise<boolean> {
+    if (this.#savePromise) {
+      await this.#savePromise;
+      return this.canSave ? this.saveChanges(automatic) : true;
+    }
+    if (!this.canSave) return false;
     const rawData = $state.snapshot(this.data).map((subscription) => ({
       ...subscription,
       url: normalizeSubscriptionUrl(subscription.url),
     }));
-
-    fetcher
-      .put("/subscriptions", { subscriptions: rawData })
-      .then(() => {
-        this.tracker.reset(rawData);
-        overlay.hide();
-        toast.success(t("Saved"));
-      })
-      .catch(() => {
-        overlay.hide();
-      });
+    const revision = this.tracker.changeVersion;
+    const snapshot = JSON.stringify($state.snapshot(this.data));
+    this.saving = true;
+    this.saveState = "saving";
+    if (!automatic) overlay.show(t("saving changes..."));
+    const request = (async () => {
+      try {
+        await fetcher.put("/subscriptions", { subscriptions: rawData });
+        if (JSON.stringify($state.snapshot(this.data)) === snapshot) {
+          this.tracker.reset(rawData);
+        }
+        this.failedSaveRevision = null;
+        this.saveState = "saved";
+        if (!automatic) toast.success(t("Saved"));
+        return true;
+      } catch {
+        this.failedSaveRevision = revision;
+        this.saveState = "error";
+        return false;
+      } finally {
+        this.saving = false;
+        if (!automatic) overlay.hide();
+      }
+    })();
+    this.#savePromise = request;
+    try {
+      return await request;
+    } finally {
+      this.#savePromise = null;
+    }
   }
 
   checkRulesValidityState = () => {

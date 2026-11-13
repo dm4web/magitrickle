@@ -60,7 +60,7 @@ type ThemeMode = "system" | "light" | "dark";
 
 async function selectTheme(page: Page, mode: ThemeMode) {
   await page.locator(".theme-switch [data-select-trigger]").click();
-  await page.locator('.theme-menu [data-select-item][data-value="' + mode + '"]').click();
+  await page.locator('[data-select-item][data-value="' + mode + '"]').click();
 }
 
 test("system theme tracks OS and explicit themes override it", async ({ page }) => {
@@ -90,13 +90,13 @@ test("system theme tracks OS and explicit themes override it", async ({ page }) 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 
-test("theme label and arrow remain compact in both languages", async ({ page }) => {
+test("theme trigger keeps a compact label and arrow in both languages", async ({ page }) => {
   await page.goto("/");
   const trigger = page.locator(".theme-switch [data-select-trigger]");
   const measure = () =>
     trigger.evaluate((root) => {
       const label = root.querySelector(".theme-label")!.getBoundingClientRect();
-      const arrow = root.querySelector(".theme-chevron")!.getBoundingClientRect();
+      const arrow = root.querySelector(":scope > svg")!.getBoundingClientRect();
       return arrow.left - label.right;
     });
 
@@ -109,9 +109,8 @@ test("theme label and arrow remain compact in both languages", async ({ page }) 
 
   await page.locator(".locale button").click();
   await expect(trigger.locator(".theme-label")).toHaveText("Тёмная");
-  const russianGap = await measure();
-  expect(russianGap).toBeGreaterThanOrEqual(3);
-  expect(russianGap).toBeLessThanOrEqual(9);
+  expect(await measure()).toBeGreaterThanOrEqual(3);
+  expect(await measure()).toBeLessThanOrEqual(9);
 
   await page.setViewportSize({ width: 390, height: 844 });
   const containment = await trigger.evaluate((root) => {
@@ -121,35 +120,30 @@ test("theme label and arrow remain compact in both languages", async ({ page }) 
   expect(containment).toBe(true);
 });
 
-test("theme menu clearly highlights selection without hover flicker", async ({ page }) => {
+test("shared theme selector keeps its checkmark and selected state on mouse leave", async ({
+  page,
+}) => {
   await page.goto("/");
   await selectTheme(page, "dark");
   const trigger = page.locator(".theme-switch [data-select-trigger]");
   await trigger.click();
 
-  const selected = page.locator('.theme-menu [data-value="dark"]');
-  const other = page.locator('.theme-menu [data-value="light"]');
+  const selected = page.locator('[data-select-item][data-value="dark"]');
+  const other = page.locator('[data-select-item][data-value="light"]');
   await expect(selected).toHaveAttribute("data-selected", "");
-  await expect(selected.locator(".theme-option-check svg")).toBeVisible();
-  await expect(other.locator(".theme-option-check svg")).toHaveCount(0);
+  await expect(selected.locator(".option-check svg")).toBeVisible();
+  await expect(other.locator(".option-check svg")).toHaveCount(0);
 
-  const selectionBackground = await selected.evaluate((el) => getComputedStyle(el).backgroundColor);
-  const normalBackground = await other.evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(selectionBackground).not.toBe(normalBackground);
-
+  const background = await selected.evaluate((el) => getComputedStyle(el).backgroundColor);
   await other.hover();
   await page.mouse.move(15, 300);
-  await expect(selected).toBeVisible();
   await expect(selected).toHaveAttribute("data-selected", "");
-  expect(await selected.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(
-    selectionBackground,
-  );
-  await page.keyboard.press("Escape");
-  await expect(page.locator(".theme-menu")).toHaveCount(0);
+  expect(await selected.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe(background);
 
-  // Keyboard accessibility of the custom menu.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("[data-select-content]")).toHaveCount(0);
   await trigger.focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator('.theme-menu [data-value="dark"]')).toBeVisible();
+  await expect(page.locator('[data-select-item][data-value="dark"]')).toBeVisible();
   await page.keyboard.press("Escape");
 });

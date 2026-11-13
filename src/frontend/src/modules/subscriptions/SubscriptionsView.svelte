@@ -5,6 +5,7 @@
   import SelectionFrame from "../../components/bulk/SelectionFrame.svelte";
   import PageControls from "../../components/layout/PageControls.svelte";
   import Placeholder from "../../components/ui/Placeholder.svelte";
+  import { autosave } from "../../data/autosave.svelte";
   import { t } from "../../data/locale.svelte";
   import SubscriptionPanel from "./components/SubscriptionPanel.svelte";
   import SubscriptionSearch from "./components/SubscriptionSearch.svelte";
@@ -60,6 +61,17 @@
 
   let addSubscriptionModal = $state(false);
 
+  $effect(() => {
+    const enabled = autosave.current;
+    const revision = store.tracker.changeVersion;
+    const ready = store.dataLoaded && !store.fetchError && store.canSave;
+    const busy = store.saving;
+    const failedRevision = store.failedSaveRevision;
+    if (!enabled || !ready || busy || failedRevision === revision) return;
+    const timer = window.setTimeout(() => void store.saveChanges(true), 2000);
+    return () => window.clearTimeout(timer);
+  });
+
   async function handleAdd(event: CustomEvent<AddSubscriptionEvent>) {
     await store.addSubscription(event.detail);
   }
@@ -79,6 +91,10 @@
     controlsClass="subscription-controls"
     addLabel={t("Add Subscription")}
     canSave={store.canSave}
+    isDirty={store.tracker.isDirty}
+    saveFailed={store.saveState === "error" &&
+      store.failedSaveRevision === store.tracker.changeVersion}
+    saveState={store.saveState}
     onAdd={() => (addSubscriptionModal = true)}
     onSave={() => store.saveChanges()}
     saveButtonId="save-subscriptions"

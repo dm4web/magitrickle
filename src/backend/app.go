@@ -3,6 +3,7 @@ package magitrickle
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"slices"
 	"strconv"
@@ -354,6 +355,12 @@ func validateGroups(groups []*models.Group, subscriptions []*models.Subscription
 			if err != nil || net.ParseIP(host) == nil || portErr != nil || number < 1 || number > 65535 {
 				return fmt.Errorf("group %s: check_target must be an IP:port (IPv6 in brackets)", group.ID)
 			}
+		}
+		if group.CheckInterval < 0 || group.CheckInterval > 300 {
+			return fmt.Errorf("group %s: check_interval must be between 1 and 300 seconds", group.ID)
+		}
+		if group.CheckTimeout < 0 || (group.CheckTimeout > 0 && group.CheckTimeout < 0.1) || group.CheckTimeout > 30 || math.IsNaN(group.CheckTimeout) || math.IsInf(group.CheckTimeout, 0) {
+			return fmt.Errorf("group %s: check_timeout must be between 0.1 and 30 seconds", group.ID)
 		}
 
 		if err := uniqueRuleIDs(group.Rules, func(rule *models.Rule) intID.ID { return rule.ID }); err != nil {

@@ -1,9 +1,13 @@
 <script lang="ts">
-  import Select from "../../../components/ui/Select.svelte";
+  import { Crown, Plus, X } from "lucide-svelte";
+
   import { interfaces } from "../../../data/interfaces.svelte";
   import { t } from "../../../data/locale.svelte";
   import type { GroupRoutingStatus, InterfaceCheck } from "../../../data/routing-status.svelte";
 
+  import { Grip } from "../../../components/ui/icons";
+  import { routeIndicator } from "../../../data/route-indicator";
+  import { draggable, droppable } from "../../../lib/dnd";
   import type { Group } from "../../../types";
 
   type Props = {
@@ -13,30 +17,37 @@
   };
 
   let { group, status, onChanged }: Props = $props();
-  let candidate = $state("");
-
   let backups = $derived(group.fallback_interfaces ?? []);
-  let options = $derived(
-    interfaces.list
-      .filter(
-        (item) =>
-          item.id !== "blackhole" && item.id !== group.interface && !backups.includes(item.id),
-      )
-      .map((item) => ({
-        value: item.id,
-        label: item.id,
-        description: item.name,
-      })),
+  let routeView = $derived(routeIndicator(status, group.enable));
+  let allInterfaces = $derived.by(() => {
+    const list = [...interfaces.list.filter((item) => item.id !== "blackhole")];
+    for (const id of [group.interface, ...backups]) {
+      if (id && !list.some((item) => item.id === id)) list.push({ id });
+    }
+    return list;
+  });
+  let inactive = $derived(
+    allInterfaces.filter((item) => item.id !== group.interface && !backups.includes(item.id)),
   );
 
   function checkFor(name: string): InterfaceCheck | undefined {
     return status?.interfaces.find((item) => item.interface === name);
   }
 
-  function addBackup() {
-    if (!candidate || candidate === group.interface || backups.includes(candidate)) return;
-    group.fallback_interfaces = [...backups, candidate];
-    candidate = "";
+  function addBackup(name: string) {
+    if (!name || name === group.interface || backups.includes(name)) return;
+    group.fallback_interfaces = [...backups, name];
+    onChanged();
+  }
+
+  function makePrimary(name: string) {
+    if (!name || name === group.interface) return;
+    const previous = group.interface;
+    group.interface = name;
+    group.fallback_interfaces = [
+      previous,
+      ...backups.filter((item) => item !== name && item !== previous),
+    ].filter(Boolean);
     onChanged();
   }
 
@@ -53,6 +64,29 @@
     group.fallback_interfaces = next;
     onChanged();
   }
+
+  function reorderBackup(source: { name: string }, target: { name: string }) {
+    if (source.name === target.name) return;
+    const next = [...backups];
+    const from = next.indexOf(source.name);
+    const to = next.indexOf(target.name);
+    if (from < 0 || to < 0) return;
+    next.splice(from, 1);
+    next.splice(to, 0, source.name);
+    group.fallback_interfaces = next;
+    onChanged();
+  }
+
+  function createBackupDragPreview(name: string): HTMLElement {
+    const preview = document.createElement("div");
+    preview.textContent = "⠿  " + name;
+    preview.style.cssText =
+      "position:fixed;top:-1000px;left:-1000px;z-index:2147483647;pointer-events:none;" +
+      "padding:.45rem .7rem;border-radius:.5rem;background:var(--bg-medium);" +
+      "border:1px solid var(--accent);color:var(--text);" +
+      "font:600 .9rem var(--font);box-shadow:var(--shadow-popover);";
+    return preview;
+  }
 </script>
 
 <section class="failover-settings" aria-label={t("Interface failover")}>
@@ -61,22 +95,17 @@
       <strong>{t("Interface selection")}</strong>
       <p>{t("The first available interface is selected in priority order.")}</p>
     </div>
-    {#if backups.length > 0}
+    {#if status}
       <span class="failover-summary">
-        {#if status}
-          {t("Route:")}
-          <b
-            >{!status.applied
-              ? t("Not applied")
-              : status.active_interface === "blackhole"
-                ? t("Blocked")
-                : status.active_interface}</b
-          >
-          {#if status.selected_interface !== status.active_interface}
-            <small>{t("Selected: {interface}", { interface: status.selected_interface })}</small>
-          {/if}
-        {:else}
-          {t("Waiting for status")}
+        {t("Route:")}
+        <b
+          class:route-error={routeView.kind === "error"}
+          class:route-good={routeView.kind === "healthy"}
+        >
+          {t(routeView.label)}
+        </b>
+        {#if status.selected_interface !== status.active_interface}
+          <small>{t("Selected: {interface}", { interface: status.selected_interface })}</small>
         {/if}
       </span>
     {/if}
@@ -97,10 +126,28 @@
         >
           {check?.checked ? (check.healthy ? t("Available") : t("Unavailable")) : t("Waiting")}
         </span>
+      {:else}
+        <span class="interface-health">{t("Waiting")}</span>
       {/if}
     </div>
     {#each backups as name, index (name)}
-      <div class="interface-entry backup">
+      <div
+        class="interface-entry backup"
+        use:draggable={{
+          data: { name },
+          scope: `backup-interface:${group.id}`,
+          handle: ".backup-grip",
+          effects: { effectAllowed: "move", dropEffect: "move" },
+          dragImage: () => createBackupDragPreview(name),
+        }}
+        use:droppable={{
+          data: { name },
+          scope: `backup-interface:${group.id}`,
+          canDrop: (source: { name: string }) => source.name !== name,
+          dropEffect: "move",
+          onDrop: (source: { name: string }) => reorderBackup(source, { name }),
+        }}
+      >
         <span class="interface-position">{index + 2}</span>
         <span class="interface-name">{name}</span>
         <span class="interface-role">{t("Backup")}</span>
@@ -114,8 +161,13 @@
           >
             {check?.checked ? (check.healthy ? t("Available") : t("Unavailable")) : t("Waiting")}
           </span>
+        {:else}
+          <span class="interface-health">{t("Waiting")}</span>
         {/if}
         <div class="interface-actions">
+          <span class="backup-grip" title={t("Drag interface")} aria-label={t("Drag interface")}>
+            <Grip size={18} />
+          </span>
           <button
             type="button"
             aria-label={t("Increase priority")}
@@ -132,41 +184,99 @@
           >
           <button
             type="button"
-            class="remove"
-            aria-label={t("Remove backup")}
-            title={t("Delete")}
-            onclick={() => removeBackup(index)}>×</button
+            aria-label={t("Make primary")}
+            title={t("Make primary")}
+            onclick={() => makePrimary(name)}
           >
+            <Crown size={15} />
+          </button>
+          <button
+            type="button"
+            class="remove"
+            aria-label={t("Deactivate interface")}
+            title={t("Deactivate interface")}
+            onclick={() => removeBackup(index)}><X size={16} /></button
+          >
+        </div>
+      </div>
+    {/each}
+    {#each inactive as item (item.id)}
+      <div class="interface-entry inactive">
+        <span class="interface-position" aria-hidden="true">—</span>
+        <span class="interface-name">{item.id}</span>
+        <span class="interface-role">{t("Inactive")}</span>
+        <span class="interface-health">{t("Not monitored")}</span>
+        <div class="interface-actions">
+          <button
+            type="button"
+            aria-label={t("Make primary")}
+            title={t("Make primary")}
+            onclick={() => makePrimary(item.id)}
+          >
+            <Crown size={15} />
+          </button>
+          <button
+            type="button"
+            aria-label={t("Add backup")}
+            title={t("Add backup")}
+            onclick={() => addBackup(item.id)}
+          >
+            <Plus size={17} />
+          </button>
         </div>
       </div>
     {/each}
   </div>
 
-  {#if options.length > 0}
-    <div class="add-backup">
-      <Select {options} bind:selected={candidate} ariaLabel={t("Select backup interface")} />
-      <button type="button" disabled={!candidate} onclick={addBackup}>{t("Add backup")}</button>
-    </div>
-  {/if}
-
   <div class="probe-setting">
-    <label for={"check-target-" + group.id}>{t("TCP connectivity check (optional)")}</label>
-    <input
-      id={"check-target-" + group.id}
-      type="text"
-      placeholder="1.1.1.1:443"
-      spellcheck="false"
-      value={group.check_target ?? ""}
-      oninput={(event) => {
-        group.check_target = event.currentTarget.value.trim();
-        onChanged();
-      }}
-    />
-    <p>
-      {t(
-        "Without a target, only the interface link state is checked. With a target, TCP connectivity is checked through each interface. If all interfaces fail, traffic is blocked using blackhole. Checks run every 5 seconds.",
-      )}
-    </p>
+    <div class="probe-field probe-target">
+      <label for={"check-target-" + group.id}>{t("TCP connectivity check (optional)")}</label>
+      <input
+        id={"check-target-" + group.id}
+        type="text"
+        placeholder="1.1.1.1:443"
+        spellcheck="false"
+        value={group.check_target ?? ""}
+        oninput={(event) => {
+          group.check_target = event.currentTarget.value.trim();
+          onChanged();
+        }}
+      />
+    </div>
+    <div class="probe-field">
+      <label for={"check-interval-" + group.id}>{t("Check interval (s)")}</label>
+      <input
+        id={"check-interval-" + group.id}
+        type="number"
+        min="1"
+        max="300"
+        step="1"
+        value={group.check_interval || 5}
+        oninput={(event) => {
+          const input = event.currentTarget;
+          if (!input.value || !input.validity.valid) return;
+          group.check_interval = Number(input.value);
+          onChanged();
+        }}
+      />
+    </div>
+    <div class="probe-field">
+      <label for={"check-timeout-" + group.id}>{t("TCP timeout (s)")}</label>
+      <input
+        id={"check-timeout-" + group.id}
+        type="number"
+        min="0.1"
+        max="30"
+        step="0.1"
+        value={group.check_timeout || 1.5}
+        oninput={(event) => {
+          const input = event.currentTarget;
+          if (!input.value || !input.validity.valid) return;
+          group.check_timeout = Number(input.value);
+          onChanged();
+        }}
+      />
+    </div>
   </div>
 </section>
 
@@ -200,8 +310,7 @@
     font-size: 1rem;
   }
 
-  .failover-intro p,
-  .probe-setting p {
+  .failover-intro p {
     margin: 0;
     color: var(--text-2);
     font-size: 0.83rem;
@@ -233,7 +342,7 @@
 
   .interface-entry {
     display: grid;
-    grid-template-columns: 1rem minmax(0, 1fr) 5rem 6rem 7.5rem;
+    grid-template-columns: 1rem minmax(0, 1fr) 5.5rem 6.5rem 12rem;
     align-items: center;
     column-gap: var(--layout-gap);
     height: 2.75rem;
@@ -247,6 +356,26 @@
 
   .interface-entry.primary {
     border-color: var(--accent);
+  }
+
+  .interface-entry.inactive {
+    opacity: 0.58;
+    background: var(--bg-dark);
+    border-style: dashed;
+  }
+
+  .interface-entry.inactive:hover,
+  .interface-entry.inactive:focus-within {
+    opacity: 1;
+  }
+
+  :global(.interface-entry.backup.dragover) {
+    border-color: var(--accent);
+    background: var(--bg-light);
+  }
+
+  :global(.interface-entry.backup.dragging) {
+    opacity: 0.5;
   }
 
   .interface-position {
@@ -263,6 +392,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .route-error {
+    color: var(--red) !important;
+  }
+
+  .route-good {
+    color: var(--green) !important;
   }
 
   .interface-role {
@@ -294,8 +431,29 @@
     gap: 0.25rem;
   }
 
+  .backup-grip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 1.3rem;
+    width: 1.3rem;
+    height: 1.9rem;
+    color: var(--text-2);
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .backup-grip:hover {
+    color: var(--text);
+  }
+
+  .backup-grip:active {
+    cursor: grabbing;
+  }
+
   .interface-actions button,
-  .add-backup button {
+  .interface-actions button {
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -319,12 +477,12 @@
   }
 
   .interface-actions button:hover:not(:disabled),
-  .add-backup button:hover:not(:disabled) {
+  .interface-actions button:hover:not(:disabled) {
     border-color: var(--accent);
   }
 
   .interface-actions button:disabled,
-  .add-backup button:disabled {
+  .interface-actions button:disabled {
     cursor: default;
     opacity: 0.4;
   }
@@ -333,23 +491,17 @@
     color: var(--red);
   }
 
-  .add-backup {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: var(--layout-gap);
-    min-width: 0;
-    padding-left: 0;
-  }
-
-  .add-backup button {
-    min-height: 2rem;
-    padding: 0.45rem 0.75rem;
-  }
-
   .probe-setting {
     display: grid;
+    grid-template-columns: minmax(12rem, 1fr) minmax(7rem, 9rem) minmax(7rem, 9rem);
+    align-items: end;
+    gap: 0.75rem;
+  }
+
+  .probe-field {
+    display: grid;
     gap: 0.55rem;
+    min-width: 0;
   }
 
   .probe-setting label {
@@ -359,7 +511,7 @@
 
   .probe-setting input {
     box-sizing: border-box;
-    width: min(100%, 17rem);
+    width: 100%;
     padding: 0.5rem 0.7rem;
     border: 1px solid var(--bg-light-extra);
     border-radius: 0.5rem;
@@ -375,6 +527,14 @@
   }
 
   @media (max-width: 700px) {
+    .probe-setting {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+
+    .probe-target {
+      grid-column: 1 / -1;
+    }
     .failover-settings {
       padding: 0.85rem;
     }
@@ -419,10 +579,6 @@
     .interface-actions {
       grid-column: 3;
       grid-row: 2;
-    }
-
-    .add-backup {
-      padding-left: 0;
     }
   }
 </style>

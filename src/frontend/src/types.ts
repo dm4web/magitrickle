@@ -49,6 +49,8 @@ export const GroupSchema = object({
   interface: string(),
   fallback_interfaces: optional(array(string())),
   check_target: optional(string()),
+  check_interval: optional(number()),
+  check_timeout: optional(number()),
   enable: fallback(boolean(), true),
   rules: array(RuleSchema),
 });

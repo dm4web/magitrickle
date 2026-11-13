@@ -77,7 +77,7 @@ try {
   console.log("PASS: edit/save/reload preserves group settings");
 
   await page.locator(".theme-switch [data-select-trigger]").click();
-  await page.locator('.theme-menu [data-value="light"]').click();
+  await page.locator('[data-select-item][data-value="light"]').click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");

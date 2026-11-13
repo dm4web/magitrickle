@@ -30,16 +30,7 @@ test.describe("Accessibility", () => {
     // Focus Name
     await groupNameInput.focus();
 
-    // Tab -> Interface Select (First select in the group)
-    await page.keyboard.press("Tab");
-    const interfaceTrigger = page
-      .locator(".group-wrapper")
-      .first()
-      .locator("[data-select-trigger]")
-      .first();
-    await expect(interfaceTrigger).toBeFocused();
-
-    // Tab -> Enable/Disable group.
+    // The selector was removed from the group header. Tab -> Enable group.
     await page.keyboard.press("Tab");
     await expect(page.locator(".group-wrapper").first().locator(".enable-group")).toBeFocused();
 

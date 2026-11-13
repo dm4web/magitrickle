@@ -15,13 +15,45 @@ import (
 )
 
 const (
-	failoverInterval       = 5 * time.Second
-	failoverProbeTimeout   = 1500 * time.Millisecond
-	failoverRecoverSamples = 3
-	failoverFailureSamples = 2
+	failoverInterval        = time.Second // scheduler granularity, not a group probe interval
+	failoverDefaultInterval = 5 * time.Second
+	failoverProbeTimeout    = 1500 * time.Millisecond
+	failoverRecoverSamples  = 3
+	failoverFailureSamples  = 2
 )
 
-type interfaceCheckKey struct{ name, target string }
+type interfaceCheckKey struct {
+	name, target string
+	timeout      time.Duration
+}
+
+func groupCheckInterval(group *models.Group) time.Duration {
+	if group.CheckInterval > 0 {
+		return time.Duration(group.CheckInterval) * time.Second
+	}
+	return failoverDefaultInterval
+}
+
+func groupCheckTimeout(group *models.Group) time.Duration {
+	if group.CheckTimeout > 0 {
+		return time.Duration(group.CheckTimeout * float64(time.Second))
+	}
+	return failoverProbeTimeout
+}
+
+func groupCheckKey(group *models.Group, iface string) interfaceCheckKey {
+	key := interfaceCheckKey{name: iface, target: group.CheckTarget}
+	// Distinguish groups that share interface/target but have different timeouts.
+	// Keep zero for legacy groups to retain their old check identity.
+	if group.CheckTimeout > 0 {
+		key.timeout = groupCheckTimeout(group)
+	}
+	return key
+}
+
+func probeIsDue(previous interfaceCheckState, known bool, interval time.Duration, now time.Time) bool {
+	return !known || !previous.status.Checked || now.Sub(previous.status.CheckedAt) >= interval
+}
 
 type interfaceCheckState struct {
 	status    models.InterfaceCheck
@@ -97,13 +129,13 @@ func chooseInterface(group *models.Group, checks map[interfaceCheckKey]interface
 	}
 	candidates := append([]string{group.Interface}, group.FallbackInterfaces...)
 	for _, iface := range candidates {
-		checked, ok := checks[interfaceCheckKey{name: iface, target: group.CheckTarget}]
+		checked, ok := checks[groupCheckKey(group, iface)]
 		if !ok || !checked.status.Checked {
 			return "", false
 		}
 	}
 	for _, iface := range candidates {
-		if checks[interfaceCheckKey{name: iface, target: group.CheckTarget}].status.Healthy {
+		if checks[groupCheckKey(group, iface)].status.Healthy {
 			return iface, true
 		}
 	}
@@ -112,14 +144,29 @@ func chooseInterface(group *models.Group, checks map[interfaceCheckKey]interface
 
 func (a *App) refreshFailover(ctx context.Context) {
 	a.stateMu.RLock()
-	keys := map[interfaceCheckKey]struct{}{}
+	keys := map[interfaceCheckKey]time.Duration{}
+	register := func(group *models.Group, iface string) {
+		key := groupCheckKey(group, iface)
+		interval := groupCheckInterval(group)
+		if existing, ok := keys[key]; !ok || interval < existing {
+			keys[key] = interval
+		}
+	}
 	for _, group := range a.groups {
-		if !group.Enable || len(group.FallbackInterfaces) == 0 {
+		if !group.Enable {
 			continue
 		}
-		keys[interfaceCheckKey{name: group.Interface, target: group.CheckTarget}] = struct{}{}
+		register(group, group.Interface)
 		for _, iface := range group.FallbackInterfaces {
-			keys[interfaceCheckKey{name: iface, target: group.CheckTarget}] = struct{}{}
+			register(group, iface)
+		}
+	}
+	now := time.Now()
+	due := make([]interfaceCheckKey, 0, len(keys))
+	for key, interval := range keys {
+		previous, ok := a.interfaceChecks[key]
+		if probeIsDue(previous, ok, interval, now) {
+			due = append(due, key)
 		}
 	}
 	a.stateMu.RUnlock()
@@ -135,7 +182,7 @@ func (a *App) refreshFailover(ctx context.Context) {
 	var samplesMu sync.Mutex
 	var workers sync.WaitGroup
 	slots := make(chan struct{}, 8)
-	for key := range keys {
+	for _, key := range due {
 		workers.Add(1)
 		go func(key interfaceCheckKey) {
 			defer workers.Done()
@@ -145,7 +192,11 @@ func (a *App) refreshFailover(ctx context.Context) {
 				return
 			}
 			defer func() { <-slots }()
-			probeCtx, cancel := context.WithTimeout(ctx, failoverProbeTimeout)
+			timeout := key.timeout
+			if timeout == 0 {
+				timeout = failoverProbeTimeout
+			}
+			probeCtx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 			sample := probeInterface(probeCtx, key)
 			samplesMu.Lock()
@@ -167,12 +218,12 @@ func (a *App) refreshFailover(ctx context.Context) {
 	// A group may have changed while probes were in flight.
 	current := make(map[interfaceCheckKey]struct{})
 	for _, group := range a.groups {
-		if !group.Enable || len(group.FallbackInterfaces) == 0 {
+		if !group.Enable {
 			continue
 		}
-		current[interfaceCheckKey{name: group.Interface, target: group.CheckTarget}] = struct{}{}
+		current[groupCheckKey(group, group.Interface)] = struct{}{}
 		for _, name := range group.FallbackInterfaces {
-			current[interfaceCheckKey{name: name, target: group.CheckTarget}] = struct{}{}
+			current[groupCheckKey(group, name)] = struct{}{}
 		}
 	}
 	for key := range a.interfaceChecks {
@@ -256,9 +307,9 @@ func (a *App) RoutingStatuses() []models.GroupRoutingStatus {
 			CheckTarget: group.CheckTarget, Failover: len(group.FallbackInterfaces) > 0, Enabled: group.Enable,
 			Interfaces: []models.InterfaceCheck{},
 		}
-		if item.Failover {
+		if group.Enable {
 			for _, iface := range append([]string{group.Interface}, group.FallbackInterfaces...) {
-				key := interfaceCheckKey{name: iface, target: group.CheckTarget}
+				key := groupCheckKey(group, iface)
 				if check, ok := a.interfaceChecks[key]; ok {
 					item.Interfaces = append(item.Interfaces, check.status)
 				} else {

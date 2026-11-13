@@ -30,6 +30,9 @@ resulting desktop and mobile screenshots. Do not deploy to Keenetic during revie
 Source of truth: user feedback and screenshot captured 2026-11-12 23:14.
 Scope: local frontend preview and tests only. No router deployment.
 
+- [ ] Backup interface reordering works by dragging a grip, within its own
+      group only; primary interface stays fixed. Up/down buttons still work.
+      Saved group configuration contains the dragged order.
 - [ ] Final visual approval in the user’s own Chrome window.
 
 Verified locally: 66/66 Playwright browser tests, 63/63 unit test steps,

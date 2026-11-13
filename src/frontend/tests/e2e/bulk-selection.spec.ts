@@ -57,31 +57,31 @@ for (const kind of ["groups", "subscriptions"] as const) {
     for (const frame of await frames.all()) {
       const tail = frame.locator(".selection-tail");
       await tail.hover({ position: { x: 8, y: 8 } });
-      await expect(frame.locator(".tail-surface")).toHaveCSS("visibility", "visible");
+      await expect(frame.locator(".tail-surface")).toHaveCSS("opacity", "1");
       await page.mouse.move(1, 1);
-      await expect(frame.locator(".tail-surface")).toHaveCSS("visibility", "hidden");
+      await expect(frame.locator(".tail-surface")).toHaveCSS("opacity", "0");
       await expect(tail).toHaveAttribute("aria-pressed", "false");
     }
     const firstTail = frames.first().locator(".selection-tail");
     const firstSurface = frames.first().locator(".tail-surface");
     await firstTail.click({ position: { x: 8, y: 8 } });
     await page.mouse.move(1, 1);
-    await expect(firstSurface).toHaveCSS("visibility", "visible");
+    await expect(firstSurface).toHaveCSS("opacity", "1");
     await firstTail.click({ position: { x: 8, y: 8 } });
     await page.mouse.move(1, 1);
     await expect(firstTail).toBeFocused();
     await expect(firstTail).toHaveAttribute("aria-pressed", "false");
-    await expect(firstSurface).toHaveCSS("visibility", "hidden");
+    await expect(firstSurface).toHaveCSS("opacity", "0");
     // Hidden graphics must not remove the button from keyboard navigation.
     await page.keyboard.press("Tab");
     await page.keyboard.press("Shift+Tab");
     await expect(firstTail).toBeFocused();
-    await expect(firstSurface).toHaveCSS("visibility", "visible");
+    await expect(firstSurface).toHaveCSS("opacity", "1");
     await page.keyboard.press("Space");
     await expect(firstTail).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("Space");
     await page.keyboard.press("Tab");
-    await expect(firstSurface).toHaveCSS("visibility", "hidden");
+    await expect(firstSurface).toHaveCSS("opacity", "0");
     // The transparent half of the corner is also a selection target.
     await firstTail.click({ position: { x: 26, y: 26 } });
     await expect(firstTail).toHaveAttribute("aria-pressed", "true");
@@ -183,6 +183,15 @@ for (const kind of ["groups", "subscriptions"] as const) {
     await page.getByRole("button", { name: "Select item: Second", exact: true }).click();
     await bar.getByRole("button", { name: "Select all" }).click();
     await expect(bar.getByRole("status")).toContainText("3 selected");
+    const selectedSurfaceStyles = await frames.locator(".tail-surface").evaluateAll((nodes) =>
+      nodes.map((element) => {
+        const styles = getComputedStyle(element);
+        return { opacity: styles.opacity, transitionDuration: styles.transitionDuration };
+      }),
+    );
+    expect(selectedSurfaceStyles).toEqual(
+      Array.from({ length: 3 }, () => ({ opacity: "1", transitionDuration: "0s" })),
+    );
     const stateButton = bar.locator('[data-select-trigger][aria-label="State"]');
     await expect(stateButton).toHaveText("State");
     await stateButton.click();

@@ -47,81 +47,47 @@
     left: 0;
     z-index: 2;
     box-sizing: border-box;
-    width: calc(2rem + 2px);
-    height: calc(2rem + 2px);
+    width: 2rem;
+    height: 2rem;
     padding: 0;
     border: 0;
     border-radius: 0.5rem 0 0 0;
     background: transparent;
     cursor: pointer;
+    display: grid;
+    place-items: center;
   }
   .tail-surface {
-    /* Clip the artwork, keeping the entire square available for selection. */
-    clip-path: polygon(0 0, 100% 0, 0 100%);
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: flex-start;
-    justify-content: flex-start;
-    padding: 4px;
-    border-radius: inherit;
-    background: var(--bg-light-extra);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 1.45rem;
+    height: 1.45rem;
+    border: 1px solid color-mix(in srgb, var(--text-2) 45%, transparent);
+    border-radius: 0.35rem;
+    background: color-mix(in srgb, var(--bg-dark) 82%, transparent);
     pointer-events: none;
-    visibility: hidden;
-    color: color-mix(in srgb, var(--text) 35%, var(--bg-light));
-    cursor: pointer;
+    color: var(--text-2);
     opacity: 0;
-    transition:
-      opacity 120ms ease,
-      visibility 0s linear 120ms;
-  }
-  .tail-surface::before {
-    content: "";
-    position: absolute;
-    inset: 1px;
-    border-radius: calc(0.5rem - 1px) 0 0 0;
-    clip-path: polygon(0 0, calc(100% - 1px) 0, 0 calc(100% - 1px));
-    background: var(--bg-light);
-    pointer-events: none;
-  }
-  .tail-surface :global(svg) {
-    position: relative;
-  }
-  .selected .tail-surface::before,
-  .selection-tail:hover .tail-surface::before,
-  .selection-tail:focus-visible .tail-surface::before {
-    inset: 1px 0 0 1px;
-    clip-path: polygon(0 0, 100% 0, 0 100%);
-    background: var(--accent);
   }
   .selection-frame:hover .tail-surface,
   .selection-tail:focus-visible .tail-surface,
   .selected .tail-surface {
-    visibility: visible;
-    transition-delay: 0s;
     opacity: 1;
-  }
-  .selected .tail-surface,
-  .selection-tail:hover .tail-surface,
-  .selection-tail:focus-visible .tail-surface {
-    color: var(--bg-dark-extra);
   }
   .selected .tail-surface {
     background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg-dark-extra);
   }
   .selection-tail:focus-visible {
-    outline: none;
-    filter: drop-shadow(0 0 3px var(--accent));
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
   @media (hover: none) {
     .tail-surface {
-      visibility: visible;
       opacity: 1;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .tail-surface {
-      transition: none;
     }
   }
 </style>

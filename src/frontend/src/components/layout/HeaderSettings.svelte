@@ -1,6 +1,5 @@
 <script lang="ts">
-  import { Select } from "bits-ui";
-  import { Check, ChevronDown, Monitor, Moon, Sun } from "lucide-svelte";
+  import { ChevronDown, Monitor, Moon, Sun } from "lucide-svelte";
   import { onMount } from "svelte";
 
   import { authState, token } from "../../data/auth.svelte";
@@ -8,6 +7,7 @@
   import { hide } from "../../lib/tooltip/tooltip.svelte";
   import InfoDialog from "../InfoDialog.svelte";
   import Button from "../ui/Button.svelte";
+  import Select from "../ui/Select.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
 
   import { Info, Locale, LogOut } from "../ui/icons";
@@ -67,9 +67,15 @@
 
 <div class="container">
   <div class="theme-switch">
-    <Select.Root type="single" value={themeMode} items={themeOptions} onValueChange={changeTheme}>
-      <Select.Trigger class="theme-trigger" aria-label={t("Theme")}>
-        <span class="theme-icon" data-mode={themeMode} aria-hidden="true">
+    <Select
+      options={themeOptions}
+      selected={themeMode}
+      onValueChange={changeTheme}
+      ariaLabel={t("Theme")}
+      triggerClass="theme-trigger"
+    >
+      {#snippet trigger()}
+        <span class="theme-icon" aria-hidden="true">
           {#if themeMode === "system"}
             <Monitor size={17} />
           {:else if themeMode === "light"}
@@ -85,32 +91,9 @@
               ? t("Light theme")
               : t("Dark theme")}
         </span>
-        <span class="theme-chevron" aria-hidden="true"><ChevronDown size={14} /></span>
-      </Select.Trigger>
-      <Select.Content class="theme-menu" align="end" sideOffset={6} aria-label={t("Theme")}>
-        {#each themeOptions as option}
-          <Select.Item value={option.value} label={option.label} class="theme-option">
-            {#snippet children({ selected })}
-              <span class="theme-option-row" class:selected>
-                <span class="theme-option-icon" data-mode={option.value} aria-hidden="true">
-                  {#if option.value === "system"}
-                    <Monitor size={18} />
-                  {:else if option.value === "light"}
-                    <Sun size={18} />
-                  {:else}
-                    <Moon size={18} />
-                  {/if}
-                </span>
-                <span class="theme-option-label">{option.label}</span>
-                <span class="theme-option-check" aria-hidden="true">
-                  {#if selected}<Check size={17} strokeWidth={2.5} />{/if}
-                </span>
-              </span>
-            {/snippet}
-          </Select.Item>
-        {/each}
-      </Select.Content>
-    </Select.Root>
+        <ChevronDown size={14} aria-hidden="true" />
+      {/snippet}
+    </Select>
   </div>
 
   <div class="info">
@@ -188,7 +171,11 @@
     white-space: nowrap;
   }
 
-  :global(.theme-trigger[data-select-trigger]) {
+  .theme-switch :global(.select-wrap) {
+    max-width: none;
+  }
+
+  .theme-switch :global(.theme-trigger[data-select-trigger]) {
     box-sizing: border-box;
     height: 35px;
     display: inline-flex;
@@ -204,96 +191,24 @@
     white-space: nowrap;
   }
 
-  :global(.theme-trigger[data-select-trigger]:hover),
-  :global(.theme-trigger[data-select-trigger][data-state="open"]) {
-    border-color: var(--color-border-hover);
-    background: var(--bg-light);
+  .theme-switch :global(.theme-trigger[data-select-trigger]:hover),
+  .theme-switch :global(.theme-trigger[data-select-trigger][data-state="open"]) {
+    background: var(--bg-light-extra);
+    border-color: var(--border-light);
   }
 
-  :global(.theme-trigger[data-select-trigger]:focus-visible) {
+  .theme-switch :global(.theme-trigger[data-select-trigger]:focus-visible) {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
 
-  :global(.theme-menu[data-select-content]) {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-    padding: 0.35rem;
-    min-width: 11.5rem;
-    border-radius: 0.7rem;
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-secondary);
-    box-shadow: var(--shadow-popover);
-    color: var(--text);
-    z-index: 100;
-  }
-
-  :global(.theme-option[data-select-item]) {
-    display: block;
-    border: 1px solid transparent;
-    border-radius: 0.45rem;
-    padding: 0;
-    outline: none;
-    color: var(--text);
-    cursor: pointer;
-  }
-
-  :global(.theme-option[data-select-item]:hover:not([data-selected])),
-  :global(.theme-option[data-select-item][data-highlighted]:not([data-selected])) {
-    background: var(--color-bg-hover);
-    border-color: var(--color-border-hover);
-  }
-
-  :global(.theme-option[data-select-item][data-selected]) {
-    background: color-mix(in srgb, var(--accent) 22%, var(--color-bg-tertiary));
-    border-color: color-mix(in srgb, var(--accent) 65%, var(--color-border));
-  }
-
-  :global(.theme-option-row) {
-    display: grid;
-    grid-template-columns: 1.3rem minmax(0, 1fr) 1.2rem;
-    align-items: center;
-    gap: 0.65rem;
-    min-height: 2.35rem;
-    padding: 0 0.65rem;
-  }
-
-  :global(.theme-option-row.selected .theme-option-label),
-  :global(.theme-option-row.selected .theme-option-check) {
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .theme-icon,
-  .theme-chevron,
-  :global(.theme-option-icon),
-  :global(.theme-option-check) {
+  .theme-icon {
     display: inline-flex;
     align-items: center;
-    flex: 0 0 auto;
-    pointer-events: none;
     color: var(--text-2);
   }
 
-  .theme-icon[data-mode="system"],
-  :global(.theme-option-icon[data-mode="system"]) {
-    color: var(--color-info);
-  }
-
-  .theme-icon[data-mode="light"],
-  :global(.theme-option-icon[data-mode="light"]) {
-    color: var(--color-warning);
-  }
-
-  .theme-icon[data-mode="dark"],
-  :global(.theme-option-icon[data-mode="dark"]) {
-    color: var(--color-accent);
-  }
-
   .theme-label {
-    font: 500 0.86rem var(--font);
-    line-height: 1;
     white-space: nowrap;
   }
 
@@ -306,7 +221,7 @@
       display: none;
     }
 
-    :global(.theme-trigger[data-select-trigger]) {
+    .theme-switch :global(.theme-trigger[data-select-trigger]) {
       padding: 0 0.4rem;
       gap: 0.25rem;
     }

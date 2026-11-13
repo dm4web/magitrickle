@@ -13,6 +13,8 @@ type Group struct {
 	Interface          string   `yaml:"interface"`
 	FallbackInterfaces []string `yaml:"fallback_interfaces,omitempty"`
 	CheckTarget        string   `yaml:"check_target,omitempty"`
+	CheckInterval      int      `yaml:"check_interval,omitempty"` // seconds; 0 keeps the legacy default
+	CheckTimeout       float64  `yaml:"check_timeout,omitempty"`  // seconds; 0 keeps the legacy default
 	Enable             bool     `yaml:"enable"`
 	Rules              []*Rule  `yaml:"rules"`
 }

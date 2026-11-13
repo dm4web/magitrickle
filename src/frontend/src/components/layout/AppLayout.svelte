@@ -67,10 +67,10 @@
   <Tabs.Root bind:value={active_tab}>
     <nav>
       <div class="nav-left">
-        <div class="app-brand" aria-label="MagiTrickle">
+        <div class="app-brand" aria-label="Magitickle Neo">
           <span class="brand-symbol">M</span>
           <span class="brand-text">
-            <span class="brand-name">MagiTrickle</span>
+            <span class="brand-name">Magitickle Neo</span>
             <span class="brand-meta">
               <span class="brand-version" title={t("Build") + ": " + version}>{version}</span>
               {#if isDev}

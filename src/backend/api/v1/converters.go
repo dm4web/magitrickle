@@ -35,6 +35,8 @@ func GroupFromReq(req types.GroupReq, existing *models.Group) (*models.Group, er
 	group.Interface = req.Interface
 	group.FallbackInterfaces = append([]string(nil), req.FallbackInterfaces...)
 	group.CheckTarget = strings.TrimSpace(req.CheckTarget)
+	group.CheckInterval = req.CheckInterval
+	group.CheckTimeout = req.CheckTimeout
 	group.Enable = true
 	if req.Enable != nil {
 		group.Enable = *req.Enable
@@ -105,6 +107,8 @@ func RespFromGroup(group *models.Group, withRules bool) types.GroupRes {
 		Interface:          group.Interface,
 		FallbackInterfaces: append([]string(nil), group.FallbackInterfaces...),
 		CheckTarget:        group.CheckTarget,
+		CheckInterval:      group.CheckInterval,
+		CheckTimeout:       group.CheckTimeout,
 		Enable:             group.Enable,
 	}
 	if withRules {

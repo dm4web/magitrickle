@@ -269,76 +269,74 @@
                 </span>
               </span>
             </div>
-          </div>
-        </div>
+            <div class="subscription-actions">
+              <div class="action interface">
+                <Select
+                  options={interfaces.list.map((item) => ({
+                    value: item.id,
+                    label: item.id,
+                  }))}
+                  bind:selected={subscription.interface}
+                  class="subscription-interface"
+                />
+              </div>
 
-        <div class="subscription-actions">
-          <div class="action interface">
-            <Select
-              options={interfaces.list.map((item) => ({
-                value: item.id,
-                label: item.id,
-                description: item.name,
-              }))}
-              bind:selected={subscription.interface}
-              class="subscription-interface"
-            />
-          </div>
+              <div class="action toggle">
+                <Tooltip
+                  value={t(subscription.enable ? "Disable Subscription" : "Enable Subscription")}
+                >
+                  <Switch class="enable-subscription" bind:checked={subscription.enable} />
+                </Tooltip>
+              </div>
 
-          <div class="action toggle">
-            <Tooltip
-              value={t(subscription.enable ? "Disable Subscription" : "Enable Subscription")}
-            >
-              <Switch class="enable-subscription" bind:checked={subscription.enable} />
-            </Tooltip>
-          </div>
-
-          <div class="action sync">
-            <Tooltip value={t("Sync Subscription")}>
-              <Button small onclick={() => store.syncSubscription(subscription_index)}>
-                <Refresh size={20} />
-              </Button>
-            </Tooltip>
-          </div>
-
-          <div class="action delete">
-            {#if is_desktop}
-              <Tooltip value={t("Delete Subscription")}>
-                <Button small onclick={() => store.deleteSubscription(subscription_index)}>
-                  <Delete size={20} />
-                </Button>
-              </Tooltip>
-            {:else}
-              <DropdownMenu>
-                {#snippet trigger()}
-                  <Dots size={20} />
-                {/snippet}
-                {#snippet item1()}
-                  <Button general onclick={() => store.syncSubscription(subscription_index)}>
-                    <div class="dd-icon"><Refresh size={20} /></div>
-                    <div class="dd-label">{t("Sync")}</div>
+              <div class="action sync">
+                <Tooltip value={t("Sync Subscription")}>
+                  <Button small onclick={() => store.syncSubscription(subscription_index)}>
+                    <Refresh size={20} />
                   </Button>
-                {/snippet}
-                {#snippet item2()}
-                  <Button general onclick={() => store.deleteSubscription(subscription_index)}>
-                    <div class="dd-icon"><Delete size={20} /></div>
-                    <div class="dd-label">{t("Delete Subscription")}</div>
-                  </Button>
-                {/snippet}
-              </DropdownMenu>
-            {/if}
-          </div>
+                </Tooltip>
+              </div>
 
-          <div class="action collapse">
-            <Tooltip value={t(effectiveOpen ? "Collapse" : "Expand")}>
-              <Collapsible.Trigger>
-                {#if effectiveOpen}
-                  <GroupCollapse size={20} />
+              <div class="action delete">
+                {#if is_desktop}
+                  <Tooltip value={t("Delete Subscription")}>
+                    <Button small onclick={() => store.deleteSubscription(subscription_index)}>
+                      <Delete size={20} />
+                    </Button>
+                  </Tooltip>
                 {:else}
-                  <GroupExpand size={20} />
+                  <DropdownMenu>
+                    {#snippet trigger()}
+                      <Dots size={20} />
+                    {/snippet}
+                    {#snippet item1()}
+                      <Button general onclick={() => store.syncSubscription(subscription_index)}>
+                        <div class="dd-icon"><Refresh size={20} /></div>
+                        <div class="dd-label">{t("Sync")}</div>
+                      </Button>
+                    {/snippet}
+                    {#snippet item2()}
+                      <Button general onclick={() => store.deleteSubscription(subscription_index)}>
+                        <div class="dd-icon"><Delete size={20} /></div>
+                        <div class="dd-label">{t("Delete Subscription")}</div>
+                      </Button>
+                    {/snippet}
+                  </DropdownMenu>
                 {/if}
-              </Collapsible.Trigger>
-            </Tooltip>
+              </div>
+
+              <div class="action collapse">
+                <Tooltip value={t(effectiveOpen ? "Collapse" : "Expand")}>
+                  <Collapsible.Trigger>
+                    {#if effectiveOpen}
+                      <GroupCollapse size={20} />
+                    {:else}
+                      <GroupExpand size={20} />
+                    {/if}
+                  </Collapsible.Trigger>
+                </Tooltip>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -393,10 +391,9 @@
 
   .subscription-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem;
     border-radius: 0.5rem;
     background-color: var(--bg-light);
     position: relative;
@@ -405,7 +402,7 @@
   .subscription-left {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.75rem;
     flex: 1;
     min-width: 0;
   }
@@ -414,8 +411,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-right: 0.1rem;
-    margin-left: 0.1rem;
+    flex: 0 0 auto;
     color: var(--text-2);
     cursor: grab;
     user-select: none;
@@ -428,25 +424,26 @@
   }
 
   .subscription-info {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name actions"
+      "metadata metadata";
+    align-items: center;
     flex: 1;
     min-width: 0;
-    gap: 0.2rem;
+    gap: 0.3rem 0.75rem;
   }
 
   .subscription-url {
+    grid-area: metadata;
     font-size: 0.8rem;
     color: var(--text-2);
-    margin-left: 0.4rem;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.2rem;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.25rem 1.25rem;
     min-width: 0;
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
   }
 
   .url-line {
@@ -454,14 +451,15 @@
     align-items: center;
     gap: 0.3rem;
     min-width: 0;
-    width: 100%;
-    max-width: 100%;
+    max-width: 27rem;
     overflow: hidden;
   }
 
   .subscription-url-input {
     min-width: 0;
-    width: 100%;
+    width: auto;
+    field-sizing: content;
+    max-width: 100%;
     border: none;
     border-bottom: 1px solid transparent;
     background: transparent;
@@ -490,9 +488,7 @@
     align-items: center;
     gap: 0.3rem;
     flex-wrap: wrap;
-    width: 100%;
-    max-width: 100%;
-    overflow: hidden;
+    min-width: 0;
   }
 
   .icon-wrap {
@@ -502,27 +498,33 @@
   }
 
   .subscription-name {
-    border: none;
-    background-color: transparent;
-    font-size: 1.3rem;
+    grid-area: name;
+    box-sizing: border-box;
+    border: 1px solid transparent;
+    border-radius: 0.45rem;
+    background: transparent;
+    font-size: 1.2rem;
     font-weight: 600;
     font-family: var(--font);
     color: var(--text);
-    border-bottom: 1px solid transparent;
-    margin-left: 0.4rem;
-    width: 100%;
+    width: min(100%, 36rem);
+    min-width: 0;
+    margin-left: -0.65rem;
+    padding: 0.25rem 0.65rem;
 
     &:focus-visible {
       outline: none;
-      border-bottom: 1px solid var(--accent);
+      border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+      background: color-mix(in srgb, var(--accent) 8%, var(--bg-light));
     }
   }
 
   .subscription-actions {
+    grid-area: actions;
     display: flex;
     align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
+    justify-content: flex-end;
+    gap: 0.45rem;
     flex-shrink: 0;
 
     &:global([data-switch-root]) {
@@ -533,6 +535,41 @@
   .subscription-actions .action {
     display: inline-flex;
     align-items: center;
+  }
+
+  .subscription-actions :global(.subscription-interface.select-wrap) {
+    box-sizing: border-box;
+    width: 6.5rem;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .subscription-actions :global(.subscription-interface [data-select-trigger]) {
+    box-sizing: border-box;
+    width: 100%;
+    height: 2.25rem;
+    border: 1px solid var(--bg-light-extra);
+    border-radius: 0.5rem;
+    background: var(--bg-medium);
+    padding: 0.25rem 0.45rem;
+  }
+
+  .subscription-actions :global(.subscription-interface .selected) {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .subscription-actions :global(.subscription-interface .selected-text) {
+    align-items: flex-start;
+    min-width: 0;
+  }
+
+  .subscription-actions :global(.subscription-interface .selected-value),
+  .subscription-actions :global(.subscription-interface .selected-description) {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .update-sep {
@@ -603,14 +640,20 @@
 
   @media (max-width: 700px) {
     .subscription-header {
-      display: flex;
-      flex-direction: column;
-      align-items: start;
-      justify-content: center;
+      align-items: stretch;
     }
 
     .subscription-left {
       width: 100%;
+    }
+
+    .subscription-info {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas:
+        "name"
+        "metadata"
+        "actions";
+      gap: 0.45rem;
     }
 
     .subscription-grip {
@@ -621,18 +664,15 @@
       width: 100%;
       justify-content: flex-start;
       flex-wrap: wrap;
-      gap: 0.35rem;
+      gap: 0.45rem;
       margin-left: 0;
       margin-top: 0;
     }
 
     .subscription-url {
-      display: flex;
+      align-items: flex-start;
       flex-direction: column;
-      width: 100%;
-      gap: 0.2rem;
-      align-items: start;
-      max-width: 100%;
+      gap: 0.25rem;
       overflow: hidden;
     }
 
@@ -651,8 +691,12 @@
     }
 
     .subscription-actions .action.interface {
-      flex: 1 1 160px;
-      min-width: 140px;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+
+    .subscription-actions :global(.subscription-interface.select-wrap) {
+      width: 6.5rem;
     }
 
     .subscription-actions .action.toggle {

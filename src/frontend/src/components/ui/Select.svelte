@@ -134,13 +134,19 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.1rem;
-    padding: 0 0.2rem;
+    padding: 0.15rem 0.35rem;
     border-radius: 0.2rem;
     cursor: default;
     white-space: nowrap;
   }
   :global([data-select-item]:hover) {
     background-color: var(--bg-light-extra);
+  }
+  :global([data-select-item][data-selected]) {
+    background-color: var(--bg-light);
+  }
+  :global([data-select-item][data-selected]:hover) {
+    background-color: var(--bg-light);
   }
 
   .selected {
@@ -210,7 +216,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.2rem;
+    gap: 0.55rem;
     padding: 0.1rem;
     width: max-content;
     white-space: nowrap;

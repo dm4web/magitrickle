@@ -2,21 +2,22 @@ import { tick } from "svelte";
 
 import { t } from "../../data/locale.svelte";
 import { ChangeTracker } from "../../utils/change-tracker.svelte";
+
+import { type Group, type Rule } from "../../types";
 import { defaultGroup, defaultRule } from "../../utils/defaults";
 import { overlay, toast } from "../../utils/events";
 import { fetcher } from "../../utils/fetcher";
-import { type Group, type Rule } from "../../types";
 import { type SortDirection, type SortField } from "../../utils/rule-sorter";
-import { captureRuleMove } from "./rule-motion";
 import {
-  cloneGroupWithNewIds as cloneGroupWithNewIdsData,
   cloneGroupsWithNewIds as cloneGroupsWithNewIdsData,
+  cloneGroupWithNewIds as cloneGroupWithNewIdsData,
   prependGroups as prependGroupsData,
   prependRules as prependRulesData,
   restoreGroupRulesOrder as restoreGroupRulesOrderData,
   sortGroupRules as sortGroupRulesData,
   toConfigPayload as toConfigPayloadData,
 } from "./groups-data";
+import { captureRuleMove } from "./rule-motion";
 
 export const GROUPS_STORE_CONTEXT = Symbol("groups-store");
 
@@ -102,6 +103,10 @@ export class GroupsStore {
   dataRevision = $state(0);
   valid_rules = $state(true);
   canSave = $derived(this.tracker.isDirty && this.valid_rules);
+  saving = $state(false);
+  saveState = $state<"idle" | "saving" | "saved" | "error">("idle");
+  failedSaveRevision = $state<number | null>(null);
+  #savePromise: Promise<boolean> | null = null;
 
   open_state = $state<Record<string, boolean>>({});
 
@@ -398,7 +403,10 @@ export class GroupsStore {
     this.searchRuleMatchMaskById = new Map();
   }
 
-  #splitSearchHighlightSegments(value: string, query: string): SearchHighlightSegment[] | undefined {
+  #splitSearchHighlightSegments(
+    value: string,
+    query: string,
+  ): SearchHighlightSegment[] | undefined {
     if (!value || !query) return undefined;
 
     const source = `${value}`;
@@ -450,7 +458,7 @@ export class GroupsStore {
     if (!this.searchActive) return;
 
     this.#searchIndexBuilding = true;
-    const revision = this.dataRevision;
+    const revision = this.tracker.changeVersion;
     const groups = this.data;
     const total = groups.length;
     const nextIndex = new Array<SearchIndexGroup>(total);
@@ -610,22 +618,46 @@ export class GroupsStore {
     this.searchPending = false;
   }
 
-  saveChanges() {
-    if (!this.tracker.isDirty) return;
-    overlay.show(t("saving changes..."));
+  async saveChanges(automatic = false): Promise<boolean> {
+    if (this.#savePromise) {
+      await this.#savePromise;
+      return this.canSave ? this.saveChanges(automatic) : true;
+    }
+    if (!this.canSave) return false;
 
     const rawData = $state.snapshot(this.data);
+    const snapshot = JSON.stringify(rawData);
+    const revision = this.tracker.changeVersion;
+    this.saving = true;
+    this.saveState = "saving";
+    if (!automatic) overlay.show(t("saving changes..."));
 
-    fetcher
-      .put("/groups?save=true", { groups: rawData })
-      .then(() => {
-        this.tracker.reset(rawData);
-        overlay.hide();
-        toast.success(t("Saved"));
-      })
-      .catch(() => {
-        overlay.hide();
-      });
+    const request = (async () => {
+      try {
+        await fetcher.put("/groups?save=true", { groups: rawData });
+        // A newer edit must never be overwritten by an older HTTP response.
+        if (JSON.stringify($state.snapshot(this.data)) === snapshot) {
+          this.tracker.reset(rawData);
+        }
+        this.failedSaveRevision = null;
+        this.saveState = "saved";
+        if (!automatic) toast.success(t("Saved"));
+        return true;
+      } catch {
+        this.failedSaveRevision = revision;
+        this.saveState = "error";
+        return false;
+      } finally {
+        this.saving = false;
+        if (!automatic) overlay.hide();
+      }
+    })();
+    this.#savePromise = request;
+    try {
+      return await request;
+    } finally {
+      this.#savePromise = null;
+    }
   }
 
   checkRulesValidityState = () => {
@@ -795,10 +827,8 @@ export class GroupsStore {
 
   isRuleDuplicate = (ruleId: string) => this.duplicateRuleIds.has(ruleId);
   getRuleSearchMatchMask = (ruleId: string) => this.searchRuleMatchMaskById.get(ruleId) ?? 0;
-  getSearchHighlightParts = (
-    value: string,
-    query: string,
-  ): SearchHighlightSegment[] | undefined => this.#splitSearchHighlightSegments(value, query);
+  getSearchHighlightParts = (value: string, query: string): SearchHighlightSegment[] | undefined =>
+    this.#splitSearchHighlightSegments(value, query);
 
   pinDuplicateByRuleId = (ruleId: string) => {
     const key = this.#resolveDuplicateKey(ruleId);
@@ -936,7 +966,9 @@ export class GroupsStore {
     }
     if (!focus) return;
     await tick();
-    const el = document.querySelector(`.rule[data-group-uuid="${group.id}"][data-uuid="${rule.id}"]`);
+    const el = document.querySelector(
+      `.rule[data-group-uuid="${group.id}"][data-uuid="${rule.id}"]`,
+    );
     if (el) {
       el.querySelector<HTMLInputElement>("div.name input")?.focus();
       el.querySelector<HTMLInputElement>("div.pattern input")?.classList.add("invalid");
@@ -1009,11 +1041,7 @@ export class GroupsStore {
     void animateMove();
   }
 
-  changeGroupIndex(
-    from_index: number,
-    to_index: number,
-    insert: "before" | "after" = "before",
-  ) {
+  changeGroupIndex(from_index: number, to_index: number, insert: "before" | "after" = "before") {
     if (from_index === to_index && insert !== "after") return;
 
     if (from_index < 0 || from_index >= this.data.length) return;

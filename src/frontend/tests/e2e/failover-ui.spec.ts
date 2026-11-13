@@ -95,10 +95,10 @@ test("reorders backups, adds a candidate, changes TCP target and saves settings"
   await settings.getByRole("button", { name: "Повысить приоритет" }).nth(1).click();
   await expect(settings.locator(".interface-entry.backup").first()).toContainText("nwg0");
 
-  await settings.locator("[data-select-trigger]").click();
-  await page.getByRole("option", { name: "lan1" }).click();
-  await settings.getByRole("button", { name: "Добавить резерв" }).click();
+  await expect(settings.locator(".interface-entry.inactive")).toHaveCount(1);
+  await settings.locator(".interface-entry.inactive").getByRole("button", { name: "Добавить резерв" }).click();
   await expect(settings.locator(".interface-entry.backup")).toHaveCount(3);
+  await expect(settings.locator(".interface-entry.inactive")).toHaveCount(0);
   await expect(settings.locator(".add-backup")).toHaveCount(0);
 
   await settings.getByLabel("Проверка доступности (TCP, необязательно)").fill("1.1.1.1:443");
@@ -108,6 +108,88 @@ test("reorders backups, adds a candidate, changes TCP target and saves settings"
   expect(savedGroup.fallback_interfaces).toEqual(["nwg0", "eth1", "lan1"]);
   expect(savedGroup.check_target).toBe("1.1.1.1:443");
   expect(savedGroup.interface).toBe("eth0");
+});
+
+test("dragging a backup grip changes priority and preserves the primary interface", async ({
+  page,
+}) => {
+  let submitted: Record<string, unknown> | undefined;
+  await page.route("**/groups?save=true", async (route) => {
+    submitted = route.request().postDataJSON();
+    await route.fulfill({ json: { status: "ok" } });
+  });
+
+  await page.goto("/");
+  const settings = page.locator(".group-wrapper").first();
+  await settings.getByRole("button", { name: "Настроить интерфейсы" }).click();
+  const rows = settings.locator(".interface-entry.backup");
+  const names = rows.locator(".interface-name");
+  await expect(names).toHaveText(["eth1", "nwg0"]);
+  await expect(settings.locator(".interface-entry.primary .backup-grip")).toHaveCount(0);
+
+  // The row itself isn't a drag handle; dragging its text must not reorder it.
+  await rows
+    .nth(0)
+    .locator(".interface-name")
+    .dragTo(rows.nth(1), {
+      targetPosition: { x: 32, y: 20 },
+    });
+  await expect(names).toHaveText(["eth1", "nwg0"]);
+
+  await rows
+    .nth(0)
+    .locator(".backup-grip")
+    .dragTo(rows.nth(1), {
+      targetPosition: { x: 32, y: 20 },
+    });
+  await expect(names).toHaveText(["nwg0", "eth1"]);
+
+  // The existing arrow controls remain an accessible alternative.
+  await rows.nth(0).getByRole("button", { name: "Понизить приоритет" }).click();
+  await expect(names).toHaveText(["eth1", "nwg0"]);
+  await rows
+    .nth(1)
+    .locator(".backup-grip")
+    .dragTo(rows.nth(0), {
+      targetPosition: { x: 32, y: 20 },
+    });
+  await expect(names).toHaveText(["nwg0", "eth1"]);
+
+  await page.locator("#save-changes").click();
+  await expect.poll(() => submitted).toBeDefined();
+  const savedGroup = (submitted as { groups: Array<typeof initialGroup> }).groups[0];
+  expect(savedGroup.interface).toBe("eth0");
+  expect(savedGroup.fallback_interfaces).toEqual(["nwg0", "eth1"]);
+});
+
+test("a backup cannot be dragged into another group's priority list", async ({ page }) => {
+  const secondGroup = {
+    ...structuredClone(initialGroup),
+    id: "group-22",
+    name: "Second group",
+    interface: "lan1",
+    fallback_interfaces: ["nwg0", "eth1"],
+  };
+  await page.route("**/groups?with_rules=true", (route) =>
+    route.fulfill({ json: { groups: [structuredClone(initialGroup), secondGroup] } }),
+  );
+  await page.goto("/");
+  const groups = page.locator(".group-wrapper");
+  await expect(groups).toHaveCount(2);
+  for (const index of [0, 1]) {
+    await groups.nth(index).getByRole("button", { name: "Настроить интерфейсы" }).click();
+  }
+
+  const first = groups.nth(0).locator(".interface-entry.backup");
+  const second = groups.nth(1).locator(".interface-entry.backup");
+  await first
+    .nth(0)
+    .locator(".backup-grip")
+    .dragTo(second.nth(0), {
+      targetPosition: { x: 32, y: 20 },
+    });
+  await expect(first.locator(".interface-name")).toHaveText(["eth1", "nwg0"]);
+  await expect(second.locator(".interface-name")).toHaveText(["nwg0", "eth1"]);
 });
 
 test("shows blocked route and correct failover summary", async ({ page }) => {
@@ -136,12 +218,13 @@ test("shows blocked route and correct failover summary", async ({ page }) => {
     }),
   );
   await page.goto("/");
-  await expect(page.locator(".route-status")).toHaveText("Заблокирован");
+  await expect(page.locator(".route-status")).toHaveText("Нет доступного интерфейса");
+  await expect(page.locator(".route-status")).toHaveClass(/route-degraded/);
   const overview = page.getByLabel("Сводка маршрутизации");
   await expect(overview).toContainText("Нет маршрута");
   await expect(overview.locator(".overview-alert strong")).toHaveText("1");
   await page.getByRole("button", { name: "Настроить интерфейсы" }).click();
-  await expect(page.getByLabel("Резервирование интерфейсов")).toContainText("Заблокирован");
+  await expect(page.getByLabel("Резервирование интерфейсов")).toContainText("Нет доступного интерфейса");
 });
 
 test("does not report an uncommitted route as active", async ({ page }) => {
@@ -246,7 +329,7 @@ test("primary and backup rows have identical height and square action buttons", 
     const group = page.locator(".group-wrapper").first();
     await group.getByRole("button", { name: "Настроить интерфейсы" }).click();
     const rows = group.locator(".interface-entry");
-    await expect(rows).toHaveCount(3);
+    await expect(rows).toHaveCount(4);
 
     const geometry = await rows.evaluateAll((nodes) =>
       nodes.map((node) => {

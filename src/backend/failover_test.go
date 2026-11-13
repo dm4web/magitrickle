@@ -2,10 +2,47 @@ package magitrickle
 
 import (
 	"testing"
+	"time"
 
 	"magitrickle/models"
 	"magitrickle/utils/intID"
 )
+
+func TestGroupProbeTiming(t *testing.T) {
+	defaults := &models.Group{Interface: "eth0", CheckTarget: "1.1.1.1:443"}
+	if got := groupCheckInterval(defaults); got != 5*time.Second {
+		t.Fatalf("default interval = %v, want 5 seconds", got)
+	}
+	if got := groupCheckTimeout(defaults); got != 1500*time.Millisecond {
+		t.Fatalf("default timeout = %v, want 1.5 seconds", got)
+	}
+	if key := groupCheckKey(defaults, "eth1"); key.timeout != 0 {
+		t.Fatalf("legacy check key changed: %+v", key)
+	}
+
+	custom := &models.Group{Interface: "eth0", CheckTarget: "1.1.1.1:443", CheckInterval: 8, CheckTimeout: 2.4}
+	if got := groupCheckInterval(custom); got != 8*time.Second {
+		t.Fatalf("custom interval = %v, want 8 seconds", got)
+	}
+	if got := groupCheckTimeout(custom); got != 2400*time.Millisecond {
+		t.Fatalf("custom timeout = %v, want 2.4 seconds", got)
+	}
+	if key := groupCheckKey(custom, "eth1"); key.timeout != 2400*time.Millisecond {
+		t.Fatalf("custom check key timeout = %v, want 2.4 seconds", key.timeout)
+	}
+
+	now := time.Now()
+	last := interfaceCheckState{status: models.InterfaceCheck{Checked: true, CheckedAt: now.Add(-7 * time.Second)}}
+	if probeIsDue(last, true, 8*time.Second, now) {
+		t.Fatal("probe scheduled before its 8-second interval")
+	}
+	if !probeIsDue(last, true, 5*time.Second, now) {
+		t.Fatal("probe not scheduled after its 5-second interval")
+	}
+	if !probeIsDue(last, false, 8*time.Second, now) {
+		t.Fatal("initial probe must run immediately")
+	}
+}
 
 func statusFor(checks map[interfaceCheckKey]interfaceCheckState, name string, healthy bool) {
 	checks[interfaceCheckKey{name: name}] = interfaceCheckState{status: models.InterfaceCheck{Interface: name, Checked: true, Healthy: healthy}}
@@ -86,6 +123,13 @@ func TestValidateGroupFailover(t *testing.T) {
 	}{
 		{"valid TCP", models.Group{Interface: "eth0", FallbackInterfaces: []string{"eth1"}, CheckTarget: "1.1.1.1:443"}, false},
 		{"valid IPv6", models.Group{Interface: "eth0", FallbackInterfaces: []string{"eth1"}, CheckTarget: "[2606:4700:4700::1111]:443"}, false},
+		{"valid custom timing", models.Group{Interface: "eth0", CheckInterval: 7, CheckTimeout: 2.5}, false},
+		{"legacy timing defaults", models.Group{Interface: "eth0", CheckInterval: 0, CheckTimeout: 0}, false},
+		{"invalid interval negative", models.Group{Interface: "eth0", CheckInterval: -1}, true},
+		{"invalid interval too long", models.Group{Interface: "eth0", CheckInterval: 301}, true},
+		{"invalid timeout negative", models.Group{Interface: "eth0", CheckTimeout: -1}, true},
+		{"invalid timeout too short", models.Group{Interface: "eth0", CheckTimeout: 0.05}, true},
+		{"invalid timeout too long", models.Group{Interface: "eth0", CheckTimeout: 31}, true},
 		{"duplicate primary", models.Group{Interface: "eth0", FallbackInterfaces: []string{"eth0"}}, true},
 		{"duplicate backup", models.Group{Interface: "eth0", FallbackInterfaces: []string{"eth1", "eth1"}}, true},
 		{"missing primary", models.Group{FallbackInterfaces: []string{"eth1"}}, true},
