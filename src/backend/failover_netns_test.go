@@ -53,6 +53,23 @@ func assertApplied(t *testing.T, a *App, want string) {
 	}
 }
 
+// advanceProbeSchedule simulates the elapsed check interval without sleeping.
+// The scheduler is tested separately; this test exercises failover hysteresis
+// and committed route state against actual link transitions in a private netns.
+func advanceProbeSchedule(a *App) {
+	a.stateMu.Lock()
+	for key, state := range a.interfaceChecks {
+		state.status.CheckedAt = time.Now().Add(-failoverDefaultInterval - time.Second)
+		a.interfaceChecks[key] = state
+	}
+	a.stateMu.Unlock()
+}
+
+func refreshAfterInterval(a *App, ctx context.Context) {
+	advanceProbeSchedule(a)
+	a.refreshFailover(ctx)
+}
+
 func TestNetnsFailoverLifecycle(t *testing.T) {
 	requireTestNamespace(t)
 	router := &fakeRouter{}
@@ -69,7 +86,7 @@ func TestNetnsFailoverLifecycle(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	a.refreshFailover(ctx)
+	refreshAfterInterval(a, ctx)
 	assertApplied(t, a, "mtpri")
 	t.Cleanup(func() {
 		// Only change the test's private network namespace.
@@ -79,25 +96,25 @@ func TestNetnsFailoverLifecycle(t *testing.T) {
 
 	// First failure is held back by the hysteresis window.
 	testLink(t, "mtpri", false)
-	a.refreshFailover(ctx)
+	refreshAfterInterval(a, ctx)
 	assertApplied(t, a, "mtpri")
-	a.refreshFailover(ctx)
+	refreshAfterInterval(a, ctx)
 	assertApplied(t, a, "mtbak")
 
 	// Both unavailable: never switch to an unspecified real interface.
 	testLink(t, "mtbak", false)
-	a.refreshFailover(ctx)
+	refreshAfterInterval(a, ctx)
 	assertApplied(t, a, "mtbak")
-	a.refreshFailover(ctx)
+	refreshAfterInterval(a, ctx)
 	assertApplied(t, a, "blackhole")
 
 	// Three successful samples required to return to primary.
 	testLink(t, "mtpri", true)
 	for i := 0; i < failoverRecoverSamples-1; i++ {
-		a.refreshFailover(ctx)
+		refreshAfterInterval(a, ctx)
 		assertApplied(t, a, "blackhole")
 	}
-	a.refreshFailover(ctx)
+	refreshAfterInterval(a, ctx)
 	assertApplied(t, a, "mtpri")
 
 	// Auto-selection must not rewrite the saved user preference.
