@@ -79,6 +79,11 @@ def verify(path: Path, target: str, version: str | None = None) -> None:
             ):
                 ensure(payload[name].mode & 0o111 != 0, f"not executable: {name}")
 
+            init_script = data.extractfile("./opt/etc/init.d/S99magitrickle").read().decode()
+            ensure("/opt/sbin/start-stop-daemon" in init_script, "service must use a detached launcher")
+            ensure('"$SSD" -S -b -x "$PROG"' in init_script, "service must survive SSH disconnect")
+            ensure('"$SSD" -K -x "$PROG"' in init_script, "service must stop only MagiTrickle")
+
             frontend = "./opt/usr/share/magitrickle/skins/default/_app/"
             assets = [n for n in payload if n.startswith(frontend) and payload[n].isfile()]
             ensure(len(assets) >= 10, f"incomplete SvelteKit assets: {len(assets)}")
