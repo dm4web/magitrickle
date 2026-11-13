@@ -90,6 +90,41 @@ async function setupSubscriptions(page: Page, data: Subscription[]) {
 }
 
 test.describe("Subscriptions", () => {
+  test("empty subscriptions show one full-width placeholder without an empty list", async ({ page }) => {
+    await setupSubscriptions(page, []);
+
+    const placeholder = page.locator(".subscriptions-page .placeholder .card");
+    await expect(placeholder).toHaveAttribute("data-full-width", "true");
+    await expect(placeholder).toContainText("No subscriptions yet");
+    await expect(page.locator(".subscription-list")).toBeHidden();
+
+    for (const width of [1440, 740, 390]) {
+      await page.setViewportSize({ width, height: 860 });
+      const [card, controls] = await Promise.all([
+        placeholder.boundingBox(),
+        page.locator(".subscription-controls").boundingBox(),
+      ]);
+      expect(card).not.toBeNull();
+      expect(controls).not.toBeNull();
+      expect(card!.width).toBeGreaterThanOrEqual(controls!.width - 2);
+      const alignment = await placeholder.evaluate((element) => {
+        const card = element.getBoundingClientRect();
+        const icon = element.querySelector(".icon")!.getBoundingClientRect();
+        const text = element.querySelector(".content")!.getBoundingClientRect();
+        return {
+          cardCenter: card.left + card.width / 2,
+          iconCenter: icon.left + icon.width / 2,
+          textCenter: text.left + text.width / 2,
+          iconBottom: icon.bottom,
+          textTop: text.top,
+        };
+      });
+      expect(alignment.iconCenter).toBeCloseTo(alignment.cardCenter, 0);
+      expect(alignment.textCenter).toBeCloseTo(alignment.cardCenter, 0);
+      expect(alignment.iconBottom).toBeLessThanOrEqual(alignment.textTop);
+    }
+  });
+
   test("subscription header has no unused left indent and aligns right with groups", async ({
     page,
   }) => {

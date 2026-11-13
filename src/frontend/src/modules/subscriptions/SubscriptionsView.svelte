@@ -114,13 +114,14 @@
       {t("Loading subscriptions...")}
     </Placeholder>
   {:else if store.noVisibleSubscriptions}
-    <Placeholder variant="empty" minHeight="auto">
+    <Placeholder variant="empty" minHeight="auto" fullWidth>
       {t("No matches found")}
     </Placeholder>
   {:else if store.isEmptyData}
     <Placeholder
       variant="empty"
       minHeight="auto"
+      fullWidth
       subtitle={t("Add a new subscription to get started")}
     >
       {t("No subscriptions yet")}
@@ -129,8 +130,8 @@
 
   <div
     class="subscription-list"
-    class:visible={store.isAllRendered}
-    style={store.isAllRendered ? "" : "display: none;"}
+    class:visible={store.isAllRendered && !store.isEmptyData}
+    style={store.isAllRendered && !store.isEmptyData ? "" : "display: none;"}
     oninput={store.markDataRevision}
     onchange={store.markDataRevision}
   >

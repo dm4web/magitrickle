@@ -10,6 +10,7 @@
     loading?: boolean;
     variant?: Variant;
     compact?: boolean;
+    fullWidth?: boolean;
     minHeight?: string;
     subtitle?: string;
     actions?: Snippet;
@@ -21,6 +22,7 @@
     loading = false,
     variant = "neutral",
     compact = false,
+    fullWidth = false,
     minHeight = "300px",
     subtitle,
     actions,
@@ -38,6 +40,7 @@
     class="card"
     data-variant={resolvedVariant}
     data-compact={compact ? "true" : "false"}
+    data-full-width={fullWidth ? "true" : "false"}
     data-no-subtitle={subtitle ? "false" : "true"}
     {role}
     aria-live={ariaLive}
@@ -96,6 +99,23 @@
 
     opacity: 0.3;
     animation: placeholder-fade 0.3s ease forwards;
+  }
+
+  .card[data-full-width="true"] {
+    width: 100%;
+    min-height: 132px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 20px 24px;
+  }
+
+  .card[data-full-width="true"] .content {
+    max-width: 440px;
+    align-self: center;
+    align-items: center;
+    text-align: center;
   }
 
   .card[data-no-subtitle="true"] .content {
