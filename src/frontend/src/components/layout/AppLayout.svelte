@@ -148,21 +148,22 @@
             <span class="brand-meta">
               <span
                 class="brand-version"
-                class:has-update={!!(updateStatus?.available && updateStatus.releaseUrl)}
+                class:has-update={!!(updateStatus?.available && latestNeoVersion)}
                 title={t("Build") + ": " + displayedVersion}
-                >{displayedVersion}</span
               >
-              {#if updateStatus?.available && latestNeoVersion}
-                <button
-                  type="button"
-                  class="brand-update"
-                  title={`${t("Update available")}: ${updateStatus.latestVersion}`}
-                  aria-label={`${t("Update available")}: ${updateStatus.latestVersion}`}
-                  onclick={() => (updateDialogOpen = true)}
-                >
-                  <ArrowUp size={16} strokeWidth={2.5} />
-                </button>
-              {/if}
+                <span>{displayedVersion}</span>
+                {#if updateStatus?.available && latestNeoVersion}
+                  <button
+                    type="button"
+                    class="brand-update"
+                    title={`${t("Update available")}: ${updateStatus.latestVersion}`}
+                    aria-label={`${t("Update available")}: ${updateStatus.latestVersion}`}
+                    onclick={() => (updateDialogOpen = true)}
+                  >
+                    <ArrowUp size={12} strokeWidth={2.5} />
+                  </button>
+                {/if}
+              </span>
             </span>
           </span>
         </div>
@@ -282,6 +283,9 @@
   }
 
   .brand-version {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.18rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
     padding: 0.22rem 0.46rem;

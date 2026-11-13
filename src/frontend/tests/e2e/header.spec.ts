@@ -46,6 +46,14 @@ test.describe("Header Settings", () => {
     await expect(current).toHaveCSS("color", successColor);
     const arrow = page.locator(".app-brand .brand-update");
     await expect(arrow).toBeVisible();
+    await expect(page.locator(".app-brand .brand-version .brand-update")).toHaveCount(1);
+    await expect(arrow.locator("svg")).toHaveAttribute("width", "12");
+    const versionBox = await current.boundingBox();
+    const arrowBox = await arrow.boundingBox();
+    expect(versionBox).not.toBeNull();
+    expect(arrowBox).not.toBeNull();
+    expect(arrowBox!.x).toBeGreaterThan(versionBox!.x);
+    expect(arrowBox!.x + arrowBox!.width).toBeLessThanOrEqual(versionBox!.x + versionBox!.width);
     await expect(arrow).not.toHaveAttribute("href", /./);
     await arrow.click();
     const updateDialog = page.locator('[data-dialog-content][data-state="open"]');
