@@ -37,7 +37,7 @@
 
   function checkLabel(check: InterfaceCheck | undefined): string {
     if (!check?.checked) return t("Testing");
-    if (check.interface === "blackhole") return t("Blocked");
+    if (check.interface === "blackhole") return t("Traffic blocked");
     return t(check.healthy ? "Available" : "Unavailable");
   }
 

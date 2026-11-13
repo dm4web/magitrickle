@@ -377,6 +377,9 @@ test("explicit blackhole is shown beside group switch with distinct color", asyn
   await expect(group.locator(".route-backup-icon")).toHaveCount(0);
   await group.getByRole("button", { name: "Настроить интерфейсы" }).click();
   await expect(group.locator(".interface-entry.primary .interface-name")).toHaveText("blackhole");
+  await expect(group.locator(".interface-entry.primary .interface-health")).toHaveText(
+    "Трафик заблокирован",
+  );
   await expect(group.locator(".interface-entry.backup")).toHaveCount(0);
 });
 
