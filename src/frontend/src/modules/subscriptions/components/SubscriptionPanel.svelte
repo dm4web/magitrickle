@@ -27,6 +27,7 @@
   import Pagination from "../../../components/Pagination.svelte";
   import Button from "../../../components/ui/Button.svelte";
   import DropdownMenu from "../../../components/ui/DropdownMenu.svelte";
+  import EditableField from "../../../components/ui/EditableField.svelte";
   import Select from "../../../components/ui/Select.svelte";
   import Switch from "../../../components/ui/Switch.svelte";
   import Tooltip from "../../../components/ui/Tooltip.svelte";
@@ -226,48 +227,52 @@
             <Grip />
           </div>
           <div class="subscription-info">
-            <input
-              type="text"
-              placeholder={t("subscription name...")}
-              class="subscription-name"
-              bind:value={subscription.name}
-            />
-            <div class="subscription-url">
-              <label class="url-line" for={`subscription-url-${subscription.id}`}>
-                <span class="icon-wrap"><Link size={14} /></span>
-                <input
-                  id={`subscription-url-${subscription.id}`}
-                  type="url"
-                  class="subscription-url-input"
-                  class:invalid={Boolean(urlError)}
-                  bind:value={subscription.url}
-                  placeholder="https://example.com/list.txt"
-                  aria-label={t("URL")}
-                  title={subscription.url}
-                  onblur={() => store.normalizeSubscriptionUrl(subscription_index)}
+            <div class="subscription-name-wrap">
+              <div class="subscription-name-field">
+                <EditableField
+                  kind="subscription"
+                  placeholder={t("subscription name...")}
+                  title={subscription.name}
+                  bind:value={subscription.name}
                 />
-              </label>
+              </div>
               <span class="update-line">
                 <span class="icon-wrap"><CloudSync size={14} /></span>
                 <span class="update-text">{formatTime(subscription.lastUpdate)}</span>
-                <span class="update-sep">•</span>
-                <span class="update-interval">
-                  <span class="interval-label">{t("Update every")}</span>
-                  <Select
-                    options={intervals.map((item) => ({
-                      value: String(item.value),
-                      label: t(item.labelKey),
-                    }))}
-                    selected={String(subscription.interval ?? 86400)}
-                    onValueChange={(value) =>
-                      handleIntervalChange(value, (next) => {
-                        subscription.interval = next;
-                      })}
-                    class="subscription-interval"
-                    ariaLabel={t("Update every")}
-                  />
-                </span>
               </span>
+              <span class="update-interval">
+                <span class="update-sep">•</span>
+                <span class="interval-label">{t("Update every")}</span>
+                <Select
+                  options={intervals.map((item) => ({
+                    value: String(item.value),
+                    label: t(item.labelKey),
+                  }))}
+                  selected={String(subscription.interval ?? 86400)}
+                  onValueChange={(value) =>
+                    handleIntervalChange(value, (next) => {
+                      subscription.interval = next;
+                    })}
+                  class="subscription-interval"
+                  ariaLabel={t("Update every")}
+                />
+              </span>
+            </div>
+            <div class="subscription-url">
+              <div class="url-line">
+                <span class="icon-wrap"><Link size={14} /></span>
+                <EditableField
+                  id={`subscription-url-${subscription.id}`}
+                  kind="url"
+                  inputType="url"
+                  invalid={Boolean(urlError)}
+                  bind:value={subscription.url}
+                  placeholder="https://example.com/list.txt"
+                  ariaLabel={t("URL")}
+                  title={subscription.url}
+                  onfocusout={() => store.normalizeSubscriptionUrl(subscription_index)}
+                />
+              </div>
             </div>
             <div class="subscription-actions">
               <div class="action interface">
@@ -325,7 +330,7 @@
                 {/if}
               </div>
 
-              <div class="action collapse">
+              <div class="action expand-action">
                 <Tooltip value={t(effectiveOpen ? "Collapse" : "Expand")}>
                   <Collapsible.Trigger>
                     {#if effectiveOpen}
@@ -392,8 +397,9 @@
   .subscription-header {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    padding: 0.65rem 0.75rem;
+    box-sizing: border-box;
+    height: 3.3rem;
+    padding: 0.5rem;
     border-radius: 0.5rem;
     background-color: var(--bg-light);
     position: relative;
@@ -402,8 +408,8 @@
   .subscription-left {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    flex: 1;
+    gap: 0.2rem;
+    flex: 1 1 auto;
     min-width: 0;
   }
 
@@ -412,6 +418,7 @@
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
+    margin-left: 2.2rem;
     color: var(--text-2);
     cursor: grab;
     user-select: none;
@@ -424,25 +431,21 @@
   }
 
   .subscription-info {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "name actions"
-      "metadata metadata";
+    display: flex;
     align-items: center;
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
-    gap: 0.3rem 0.75rem;
+    gap: 0.5rem;
   }
 
   .subscription-url {
-    grid-area: metadata;
+    flex: 0 1 auto;
+    max-width: min(27rem, 45%);
     font-size: 0.8rem;
     color: var(--text-2);
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 0.25rem 1.25rem;
+    margin-left: auto;
     min-width: 0;
   }
 
@@ -450,45 +453,32 @@
     display: flex;
     align-items: center;
     gap: 0.3rem;
+    flex: 0 1 auto;
     min-width: 0;
-    max-width: 27rem;
-    overflow: hidden;
-  }
-
-  .subscription-url-input {
-    min-width: 0;
-    width: auto;
-    field-sizing: content;
     max-width: 100%;
-    border: none;
-    border-bottom: 1px solid transparent;
-    background: transparent;
-    color: var(--text-2);
-    font: inherit;
-    line-height: 1.3;
-    padding: 0;
-    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
   }
 
-  .subscription-url-input:focus-visible {
-    outline: none;
-    color: var(--text);
-    border-bottom-color: var(--accent);
+  .url-line :global(.editable-field) {
+    width: fit-content;
+    max-width: 100%;
   }
 
-  .subscription-url-input.invalid {
-    color: var(--red);
-    border-bottom-color: var(--red);
+  .url-line :global(.subscription-url-input) {
+    width: auto;
+    min-width: 8rem;
+    max-width: 100%;
+    field-sizing: content;
   }
 
   .update-line {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
-    flex-wrap: wrap;
-    min-width: 0;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    flex: 0 0 auto;
+    white-space: nowrap;
   }
 
   .icon-wrap {
@@ -497,34 +487,34 @@
     opacity: 0.7;
   }
 
-  .subscription-name {
-    grid-area: name;
-    box-sizing: border-box;
-    border: 1px solid transparent;
-    border-radius: 0.45rem;
-    background: transparent;
-    font-size: 1.2rem;
-    font-weight: 600;
-    font-family: var(--font);
-    color: var(--text);
-    width: min(100%, 36rem);
+  .subscription-name-wrap {
+    display: flex;
+    align-items: center;
+    flex: 1 1 0;
+    width: 0;
     min-width: 0;
-    margin-left: -0.65rem;
-    padding: 0.25rem 0.65rem;
+    gap: 0.5rem;
+  }
 
-    &:focus-visible {
-      outline: none;
-      border-color: color-mix(in srgb, var(--accent) 50%, transparent);
-      background: color-mix(in srgb, var(--accent) 8%, var(--bg-light));
-    }
+  .subscription-name-field {
+    flex: 0 1 auto;
+    width: fit-content;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .subscription-name-field :global(.subscription-name) {
+    width: auto;
+    min-width: 3.5rem;
+    max-width: 100%;
+    field-sizing: content;
   }
 
   .subscription-actions {
-    grid-area: actions;
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 0.45rem;
+    gap: 0.3rem;
     flex-shrink: 0;
 
     &:global([data-switch-root]) {
@@ -535,6 +525,22 @@
   .subscription-actions .action {
     display: inline-flex;
     align-items: center;
+    flex: 0 0 auto;
+  }
+
+  .subscription-actions .action.toggle {
+    margin-left: 0.25rem;
+  }
+
+  .subscription-actions :global([role="tooltip"] > button:not([data-switch-root])),
+  .subscription-actions :global([data-collapsible-trigger]) {
+    box-sizing: border-box;
+    width: 2.2rem;
+    height: 2.2rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .subscription-actions :global(.subscription-interface.select-wrap) {
@@ -547,7 +553,7 @@
   .subscription-actions :global(.subscription-interface [data-select-trigger]) {
     box-sizing: border-box;
     width: 100%;
-    height: 2.25rem;
+    height: 2.2rem;
     border: 1px solid var(--bg-light-extra);
     border-radius: 0.5rem;
     background: var(--bg-medium);
@@ -579,11 +585,15 @@
   .update-interval {
     display: inline-flex;
     align-items: center;
+    flex: 0 0 auto;
+    gap: 0.15rem;
+    white-space: nowrap;
+    font-size: 0.8rem;
   }
 
   .update-interval :global([data-select-trigger]) {
-    padding: 0.1rem 0.3rem;
-    font-size: 0.85rem;
+    padding: 0.1rem 0.25rem;
+    font-size: 0.8rem;
     color: var(--text-2);
   }
 
@@ -638,9 +648,22 @@
     }
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 1150px) and (min-width: 851px) {
+    .subscription-url {
+      max-width: min(20rem, 35%);
+    }
+
+    .update-interval .interval-label {
+      display: none;
+    }
+  }
+
+  @media (max-width: 850px) {
     .subscription-header {
-      align-items: stretch;
+      height: auto;
+      min-height: 3.3rem;
+      align-items: flex-start;
+      padding: 0.4rem 0.5rem;
     }
 
     .subscription-left {
@@ -648,12 +671,22 @@
     }
 
     .subscription-info {
+      display: grid;
       grid-template-columns: minmax(0, 1fr);
       grid-template-areas:
         "name"
         "metadata"
         "actions";
-      gap: 0.45rem;
+      gap: 0.3rem;
+      margin-left: 2rem;
+    }
+
+    .subscription-name-wrap {
+      grid-area: name;
+      width: 100%;
+      min-width: 0;
+      flex-wrap: wrap;
+      row-gap: 0;
     }
 
     .subscription-grip {
@@ -661,33 +694,38 @@
     }
 
     .subscription-actions {
+      grid-area: actions;
       width: 100%;
       justify-content: flex-start;
       flex-wrap: wrap;
-      gap: 0.45rem;
+      gap: 0.3rem;
       margin-left: 0;
       margin-top: 0;
     }
 
     .subscription-url {
+      grid-area: metadata;
+      width: 100%;
+      max-width: 100%;
       align-items: flex-start;
-      flex-direction: column;
-      gap: 0.25rem;
+      margin-left: 0;
       overflow: hidden;
     }
 
     .url-line {
+      width: 100%;
       max-width: 100%;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    .subscription-url-input {
-      max-width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .url-line :global(.editable-field) {
+      width: 100%;
+    }
+
+    .url-line :global(.subscription-url-input) {
+      width: 100%;
     }
 
     .subscription-actions .action.interface {
@@ -700,7 +738,7 @@
     }
 
     .subscription-actions .action.toggle {
-      margin-left: auto;
+      margin-left: 0;
     }
 
     .subscription-actions .action.sync {
@@ -714,6 +752,13 @@
       & .subscription-rules-header-column {
         display: none;
       }
+    }
+  }
+
+  @media (max-width: 550px) {
+    .update-interval .interval-label,
+    .update-sep {
+      display: none;
     }
   }
 </style>

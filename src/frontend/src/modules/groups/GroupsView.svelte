@@ -34,6 +34,7 @@
   setContext(GROUPS_STORE_CONTEXT, store);
 
   let selectedIds = $state<string[]>([]);
+  let statsExpanded = $state(false);
   let selectedItems = $derived(store.data.filter((item) => selectedIds.includes(item.id)));
   function toggleSelection(id: string) {
     selectedIds = selectedIds.includes(id)
@@ -41,7 +42,12 @@
       : [...selectedIds, id];
   }
   function applyToSelected(update: { interface: string } | { enable: boolean }) {
-    for (const item of selectedItems) Object.assign(item, update);
+    for (const item of selectedItems) {
+      Object.assign(item, update);
+      if ("interface" in update && update.interface === "blackhole") {
+        item.fallback_interfaces = [];
+      }
+    }
     store.markDataRevision();
   }
   async function deleteSelected() {
@@ -242,7 +248,38 @@
 </script>
 
 <div class="groups-page">
-  <div class="routing-overview" aria-label={t("Routing overview")}>
+  <PageControls
+    actionsClass="group-controls-actions"
+    controlsClass="group-controls"
+    addLabel={t("Add Group")}
+    canSave={store.canSave}
+    isDirty={store.tracker.isDirty}
+    saveFailed={store.saveState === "error" &&
+      store.failedSaveRevision === store.tracker.changeVersion}
+    saveState={store.saveState}
+    exportLabel={t("Export Config")}
+    importLabel={t("Import Config")}
+    onAdd={() => store.addGroup()}
+    onExport={exportConfig}
+    onImport={importConfig}
+    onSave={() => store.saveChanges()}
+    saveButtonId="save-changes"
+    saveLabel={t("Save Changes")}
+    statsLabel={t("Statistics")}
+    {statsExpanded}
+    onStatsToggle={() => (statsExpanded = !statsExpanded)}
+  >
+    {#snippet search()}
+      <Search />
+    {/snippet}
+  </PageControls>
+
+  <div
+    class="routing-overview"
+    id="routing-overview"
+    aria-label={t("Routing overview")}
+    hidden={!statsExpanded}
+  >
     <div class="overview-item">
       <span>{t("Rule groups")}</span>
       <strong>{store.data.length}</strong>
@@ -264,28 +301,6 @@
       <small>{t("Using blackhole")}</small>
     </div>
   </div>
-  <PageControls
-    actionsClass="group-controls-actions"
-    controlsClass="group-controls"
-    addLabel={t("Add Group")}
-    canSave={store.canSave}
-    isDirty={store.tracker.isDirty}
-    saveFailed={store.saveState === "error" &&
-      store.failedSaveRevision === store.tracker.changeVersion}
-    saveState={store.saveState}
-    exportLabel={t("Export Config")}
-    importLabel={t("Import Config")}
-    onAdd={() => store.addGroup()}
-    onExport={exportConfig}
-    onImport={importConfig}
-    onSave={() => store.saveChanges()}
-    saveButtonId="save-changes"
-    saveLabel={t("Save Changes")}
-  >
-    {#snippet search()}
-      <Search />
-    {/snippet}
-  </PageControls>
 
   {#if store.fetchError}
     <Placeholder variant="error" minHeight="auto" subtitle={t("Check connection or try again")}>
@@ -404,6 +419,9 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.65rem;
     margin: 0.7rem 0 1rem;
+  }
+  .routing-overview[hidden] {
+    display: none;
   }
   .overview-item {
     background: var(--bg-medium);

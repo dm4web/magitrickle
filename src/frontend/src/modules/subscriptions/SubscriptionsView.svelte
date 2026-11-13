@@ -157,6 +157,7 @@
           <SelectionFrame
             selected={selectedIds.includes(sub.id)}
             name={sub.name}
+            inlineSelection
             ontoggle={() => toggleSelection(sub.id)}
           >
             <SubscriptionPanel subscription_index={sub_index} />

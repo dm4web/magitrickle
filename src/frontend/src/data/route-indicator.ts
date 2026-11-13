@@ -12,14 +12,14 @@ export function routeIndicator(
 ): RouteIndicator {
   if (!enabled) return { label: "Disabled", kind: "disabled" };
   if (!status) return { label: "Checking", kind: "pending" };
-  if (!status.applied) return { label: "Not applied", kind: "error" };
+  if (!status.applied) return { label: "Unavailable", kind: "error" };
   const active = status.active_interface;
   if (!active || active === "blackhole") {
-    return { label: "No available interface", kind: "error" };
+    return { label: "Unavailable", kind: "error" };
   }
   const check = status.interfaces.find((item) => item.interface === active);
   if (!check?.checked) return { label: "Checking", kind: "pending" };
   return check.healthy
     ? { label: active, kind: "healthy" }
-    : { label: "No available interface", kind: "error" };
+    : { label: "Unavailable", kind: "error" };
 }

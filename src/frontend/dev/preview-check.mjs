@@ -17,6 +17,7 @@ try {
   await expect(page.locator(".group-wrapper").first().locator("input.group-name")).toHaveValue(
     "Медиасервисы",
   );
+  await page.getByRole("button", { name: "Статистика" }).click();
   await expect(page.getByLabel("Сводка маршрутизации")).toContainText("Резервирование");
   console.log("PASS: groups and summary render");
 
@@ -24,6 +25,10 @@ try {
   const settings = page.getByLabel("Резервирование интерфейсов").first();
   await expect(settings).toBeVisible();
   await expect(settings).toContainText("eth1");
+  await expect(settings.locator(".leak-protection")).toHaveCount(0);
+  await expect(
+    settings.locator(".interface-entry.inactive").filter({ hasText: "blackhole" }),
+  ).toHaveCount(1);
   console.log("PASS: failover settings render");
 
   const controller = await browser.newPage();
@@ -43,7 +48,7 @@ try {
   console.log("PASS: blackhole scenario");
 
   await controller.getByRole("button", { name: "Не удалось применить маршрут" }).click();
-  await expect(page.locator(".route-status").first()).toHaveText("Не применён", { timeout: 11000 });
+  await expect(page.locator(".route-status").first()).toHaveText("Недоступен", { timeout: 11000 });
   console.log("PASS: route-apply error scenario");
 
   await controller.getByRole("button", { name: "Основной интерфейс" }).click();

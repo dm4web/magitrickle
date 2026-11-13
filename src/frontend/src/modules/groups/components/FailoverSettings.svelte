@@ -20,10 +20,11 @@
   let backups = $derived(group.fallback_interfaces ?? []);
   let routeView = $derived(routeIndicator(status, group.enable));
   let allInterfaces = $derived.by(() => {
-    const list = [...interfaces.list.filter((item) => item.id !== "blackhole")];
+    const list = [...interfaces.list];
     for (const id of [group.interface, ...backups]) {
       if (id && !list.some((item) => item.id === id)) list.push({ id });
     }
+    if (!list.some((item) => item.id === "blackhole")) list.push({ id: "blackhole" });
     return list;
   });
   let inactive = $derived(
@@ -34,8 +35,21 @@
     return status?.interfaces.find((item) => item.interface === name);
   }
 
+  function checkLabel(check: InterfaceCheck | undefined): string {
+    if (!check?.checked) return t("Testing");
+    if (check.interface === "blackhole") return t("Blocked");
+    return t(check.healthy ? "Available" : "Unavailable");
+  }
+
   function addBackup(name: string) {
-    if (!name || name === group.interface || backups.includes(name)) return;
+    if (
+      !name ||
+      name === "blackhole" ||
+      group.interface === "blackhole" ||
+      name === group.interface ||
+      backups.includes(name)
+    )
+      return;
     group.fallback_interfaces = [...backups, name];
     onChanged();
   }
@@ -44,10 +58,13 @@
     if (!name || name === group.interface) return;
     const previous = group.interface;
     group.interface = name;
-    group.fallback_interfaces = [
-      previous,
-      ...backups.filter((item) => item !== name && item !== previous),
-    ].filter(Boolean);
+    group.fallback_interfaces =
+      name === "blackhole"
+        ? []
+        : [
+            ...(previous === "blackhole" ? [] : [previous]),
+            ...backups.filter((item) => item !== name && item !== previous && item !== "blackhole"),
+          ].filter(Boolean);
     onChanged();
   }
 
@@ -104,9 +121,6 @@
         >
           {t(routeView.label)}
         </b>
-        {#if status.selected_interface !== status.active_interface}
-          <small>{t("Selected: {interface}", { interface: status.selected_interface })}</small>
-        {/if}
       </span>
     {/if}
   </div>
@@ -124,13 +138,13 @@
           class="interface-health"
           title={check?.detail ?? ""}
         >
-          {check?.checked ? (check.healthy ? t("Available") : t("Unavailable")) : t("Waiting")}
+          {checkLabel(check)}
         </span>
       {:else}
-        <span class="interface-health">{t("Waiting")}</span>
+        <span class="interface-health">{t("Testing")}</span>
       {/if}
     </div>
-    {#each backups as name, index (name)}
+    {#each group.interface === "blackhole" ? [] : backups as name, index (name)}
       <div
         class="interface-entry backup"
         use:draggable={{
@@ -159,10 +173,10 @@
             class="interface-health"
             title={check?.detail ?? ""}
           >
-            {check?.checked ? (check.healthy ? t("Available") : t("Unavailable")) : t("Waiting")}
+            {checkLabel(check)}
           </span>
         {:else}
-          <span class="interface-health">{t("Waiting")}</span>
+          <span class="interface-health">{t("Testing")}</span>
         {/if}
         <div class="interface-actions">
           <span class="backup-grip" title={t("Drag interface")} aria-label={t("Drag interface")}>
@@ -204,8 +218,8 @@
       <div class="interface-entry inactive">
         <span class="interface-position" aria-hidden="true">—</span>
         <span class="interface-name">{item.id}</span>
-        <span class="interface-role">{t("Inactive")}</span>
-        <span class="interface-health">{t("Not monitored")}</span>
+        <span class="interface-role">{item.id === "blackhole" ? t("Blocked") : t("Inactive")}</span>
+        <span class="interface-health"></span>
         <div class="interface-actions">
           <button
             type="button"
@@ -215,14 +229,16 @@
           >
             <Crown size={15} />
           </button>
-          <button
-            type="button"
-            aria-label={t("Add backup")}
-            title={t("Add backup")}
-            onclick={() => addBackup(item.id)}
-          >
-            <Plus size={17} />
-          </button>
+          {#if item.id !== "blackhole" && group.interface !== "blackhole"}
+            <button
+              type="button"
+              aria-label={t("Add backup")}
+              title={t("Add backup")}
+              onclick={() => addBackup(item.id)}
+            >
+              <Plus size={17} />
+            </button>
+          {/if}
         </div>
       </div>
     {/each}
@@ -329,10 +345,6 @@
 
   .failover-summary b {
     color: var(--text);
-  }
-
-  .failover-summary small {
-    font-size: inherit;
   }
 
   .interface-stack {

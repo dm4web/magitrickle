@@ -8,17 +8,19 @@
   let {
     selected,
     name,
+    inlineSelection = false,
     ontoggle,
     children,
   }: {
     selected: boolean;
     name: string;
+    inlineSelection?: boolean;
     ontoggle: () => void;
     children: Snippet;
   } = $props();
 </script>
 
-<div class="selection-frame" class:selected>
+<div class="selection-frame" class:selected class:inline-selection={inlineSelection}>
   {@render children()}
   <button
     class="selection-tail"
@@ -57,6 +59,12 @@
     display: grid;
     place-items: center;
   }
+  .inline-selection .selection-tail {
+    top: 1.65rem;
+    left: 0.5rem;
+    transform: translateY(-50%);
+    border-radius: 0.35rem;
+  }
   .tail-surface {
     display: inline-flex;
     align-items: center;
@@ -81,13 +89,33 @@
     border-color: var(--accent);
     color: var(--bg-dark-extra);
   }
+  .inline-selection .tail-surface {
+    opacity: 1;
+  }
+  .inline-selection:not(.selected) .tail-surface :global(svg) {
+    opacity: 0;
+  }
   .selection-tail:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: -2px;
   }
+  .inline-selection .selection-tail:focus-visible {
+    outline: none;
+  }
+  .inline-selection .selection-tail:focus-visible .tail-surface {
+    border: 2px solid var(--accent);
+  }
+  .inline-selection.selected .selection-tail:focus-visible .tail-surface {
+    border-color: var(--text);
+  }
   @media (hover: none) {
     .tail-surface {
       opacity: 1;
+    }
+  }
+  @media (max-width: 850px) {
+    .inline-selection .selection-tail {
+      top: 1.5rem;
     }
   }
 </style>

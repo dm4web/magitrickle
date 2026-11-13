@@ -53,13 +53,14 @@ for (const kind of ["groups", "subscriptions"] as const) {
     if (kind === "subscriptions") await page.getByRole("tab", { name: "Subscriptions" }).click();
     const frames = page.locator(".selection-frame");
     await expect(frames).toHaveCount(3);
+    const idleSelectionOpacity = kind === "subscriptions" ? "1" : "0";
     // Hovering must not leave painted corners or select items.
     for (const frame of await frames.all()) {
       const tail = frame.locator(".selection-tail");
       await tail.hover({ position: { x: 8, y: 8 } });
       await expect(frame.locator(".tail-surface")).toHaveCSS("opacity", "1");
       await page.mouse.move(1, 1);
-      await expect(frame.locator(".tail-surface")).toHaveCSS("opacity", "0");
+      await expect(frame.locator(".tail-surface")).toHaveCSS("opacity", idleSelectionOpacity);
       await expect(tail).toHaveAttribute("aria-pressed", "false");
     }
     const firstTail = frames.first().locator(".selection-tail");
@@ -71,7 +72,7 @@ for (const kind of ["groups", "subscriptions"] as const) {
     await page.mouse.move(1, 1);
     await expect(firstTail).toBeFocused();
     await expect(firstTail).toHaveAttribute("aria-pressed", "false");
-    await expect(firstSurface).toHaveCSS("opacity", "0");
+    await expect(firstSurface).toHaveCSS("opacity", idleSelectionOpacity);
     // Hidden graphics must not remove the button from keyboard navigation.
     await page.keyboard.press("Tab");
     await page.keyboard.press("Shift+Tab");
@@ -81,7 +82,7 @@ for (const kind of ["groups", "subscriptions"] as const) {
     await expect(firstTail).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.press("Space");
     await page.keyboard.press("Tab");
-    await expect(firstSurface).toHaveCSS("opacity", "0");
+    await expect(firstSurface).toHaveCSS("opacity", idleSelectionOpacity);
     // The transparent half of the corner is also a selection target.
     await firstTail.click({ position: { x: 26, y: 26 } });
     await expect(firstTail).toHaveAttribute("aria-pressed", "true");

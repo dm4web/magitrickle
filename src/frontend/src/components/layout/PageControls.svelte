@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ChartColumn } from "lucide-svelte";
   import type { Snippet } from "svelte";
 
   import { autosave } from "../../data/autosave.svelte";
@@ -26,6 +27,9 @@
     importLabel?: string;
     onExport?: () => void;
     onImport?: (event: Event) => void;
+    statsLabel?: string;
+    statsExpanded?: boolean;
+    onStatsToggle?: () => void;
   };
 
   let {
@@ -46,10 +50,15 @@
     saveButtonId,
     saveLabel,
     saveState = "idle",
+    statsLabel,
+    statsExpanded = false,
+    onStatsToggle,
   }: Props = $props();
 
   let importInputRef = $state<HTMLInputElement>();
-  let actionsCount = $derived(2 + (onImport ? 1 : 0) + (onExport ? 1 : 0));
+  let actionsCount = $derived(
+    2 + (onImport ? 1 : 0) + (onExport ? 1 : 0) + (onStatsToggle ? 1 : 0),
+  );
   let actionsReserve = $derived(`${actionsCount * 48 + Math.max(0, actionsCount - 1) * 8 + 84}px`);
   let statusText = $derived(
     saveState === "saving"
@@ -77,6 +86,19 @@
   </div>
 
   <div class={`page-controls-actions ${actionsClass}`}>
+    {#if onStatsToggle && statsLabel}
+      <Tooltip value={statsLabel}>
+        <Button
+          aria-label={statsLabel}
+          aria-expanded={statsExpanded}
+          aria-controls="routing-overview"
+          onclick={onStatsToggle}
+          class="statistics-trigger"
+        >
+          <ChartColumn size={22} />
+        </Button>
+      </Tooltip>
+    {/if}
     <div class="save-cluster">
       <Tooltip value={saveLabel}>
         <Button
@@ -314,7 +336,7 @@
       --row-h: 48px;
       --gap: 10px;
       --actions-top: 0px;
-      --actions-reserve: var(--actions-reserve-size);
+      --actions-reserve: min(var(--actions-reserve-size), calc(100% - 3.5rem));
     }
 
     .page-controls-search {

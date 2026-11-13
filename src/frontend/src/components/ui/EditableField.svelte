@@ -4,7 +4,12 @@
   type Props = {
     value: string;
     placeholder?: string;
-    kind?: "group" | "rule" | "pattern";
+    kind?: "group" | "rule" | "pattern" | "subscription" | "url";
+    id?: string;
+    inputType?: "text" | "url";
+    ariaLabel?: string;
+    title?: string;
+    invalid?: boolean;
     highlightParts?: HighlightPart[];
     warning?: boolean;
     element?: HTMLInputElement;
@@ -16,6 +21,11 @@
     value = $bindable(),
     placeholder = "",
     kind = "rule",
+    id,
+    inputType = "text",
+    ariaLabel,
+    title,
+    invalid = false,
     highlightParts,
     warning = false,
     element = $bindable(),
@@ -26,14 +36,20 @@
 
 <div class:group={kind === "group"} class="editable-field">
   <input
-    type="text"
+    type={inputType}
+    {id}
+    aria-label={ariaLabel}
+    {title}
     bind:value
     bind:this={element}
     {placeholder}
     class="editable-input"
     class:group-name={kind === "group"}
-    class:table-input={kind !== "group"}
+    class:table-input={kind === "rule" || kind === "pattern"}
     class:pattern-input={kind === "pattern"}
+    class:subscription-name={kind === "subscription"}
+    class:subscription-url-input={kind === "url"}
+    class:invalid
     class:search-text-hidden={Boolean(highlightParts)}
     class:has-warning={warning}
     {oninput}
@@ -97,6 +113,28 @@
     font-size: 1.3rem;
     font-weight: 600;
     line-height: 1.25;
+  }
+
+  .editable-input.subscription-name {
+    font-size: 1.3rem;
+    font-weight: 600;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .editable-input.subscription-url-input {
+    color: var(--text-2);
+    font-size: 0.75rem;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .editable-input.subscription-url-input:focus {
+    color: var(--text);
   }
 
   .editable-input.has-warning {

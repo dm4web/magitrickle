@@ -90,14 +90,211 @@ async function setupSubscriptions(page: Page, data: Subscription[]) {
 }
 
 test.describe("Subscriptions", () => {
-  test("subscription header keeps metadata together and actions aligned on desktop and mobile", async ({
+  test("subscription header has no unused left indent and aligns right with groups", async ({
     page,
   }) => {
     await setupSubscriptions(page, [
-      makeSubscription("a1b2c3d4", "https://example.com/demo-rules", "Тестовая подписка"),
+      makeSubscription("a1b2c3d4", "https://example.com/demo-rules", "Test"),
+    ]);
+    await page.route("**/groups?with_rules=true", (route) =>
+      route.fulfill({
+        json: {
+          groups: [
+            {
+              id: "group-11",
+              name: "Media",
+              interface: "eth0",
+              enable: true,
+              color: "#7799cc",
+              rules: [],
+            },
+          ],
+        },
+      }),
+    );
+
+    for (const width of [1440, 1024, 900, 850, 740, 390, 360]) {
+      await page.setViewportSize({ width, height: 860 });
+      await page.goto("/");
+      if (width <= 700) await page.locator(".mobile-dropdown-btn").click();
+      await page.getByRole("tab", { name: "Groups" }).click();
+      const group = page.locator(".group-wrapper").first();
+      await expect(group).toBeVisible();
+      const groupPosition = await group.evaluate((element) => ({
+        nameX: element.querySelector(".group-name")!.getBoundingClientRect().x,
+        gripX: element.querySelector(".group-grip")!.getBoundingClientRect().x,
+        lastRight: element
+          .querySelector(".group-actions [data-collapsible-trigger]")!
+          .getBoundingClientRect().right,
+        headerHeight: element.querySelector(".group-header")!.getBoundingClientRect().height,
+      }));
+
+      if (width <= 700) await page.locator(".mobile-dropdown-btn").click();
+      await page.getByRole("tab", { name: "Subscriptions" }).click();
+      const panel = page.locator(".subscription-panel").first();
+      await expect(panel).toBeVisible();
+      const subscriptionPosition = await panel.evaluate((element) => ({
+        nameX: element.querySelector(".subscription-name")!.getBoundingClientRect().x,
+        gripX: element.querySelector(".subscription-grip")!.getBoundingClientRect().x,
+        headerX: element.querySelector(".subscription-header")!.getBoundingClientRect().x,
+        lastRight: element
+          .querySelector(".expand-action [data-collapsible-trigger]")!
+          .getBoundingClientRect().right,
+        headerHeight: element.querySelector(".subscription-header")!.getBoundingClientRect().height,
+        overflow: document.documentElement.scrollWidth - window.innerWidth,
+      }));
+
+      if (width <= 850) {
+        expect(subscriptionPosition.nameX).toBeCloseTo(groupPosition.nameX, 0);
+      }
+      expect(subscriptionPosition.overflow).toBeLessThanOrEqual(1);
+      if (width > 850) {
+        expect(subscriptionPosition.gripX).toBeCloseTo(groupPosition.gripX, 0);
+        expect(subscriptionPosition.lastRight).toBeCloseTo(groupPosition.lastRight, 0);
+        expect(subscriptionPosition.headerHeight).toBeCloseTo(groupPosition.headerHeight, 0);
+      }
+    }
+  });
+
+  test("subscription selection checkbox does not cover the drag handle", async ({ page }) => {
+    await setupSubscriptions(page, [
+      makeSubscription("a1b2c3d4", "https://example.com/demo-rules", "Test"),
+    ]);
+    const frame = page.locator(".selection-frame.inline-selection").first();
+    const check = frame.locator(".selection-tail");
+
+    for (const width of [1440, 900, 390]) {
+      await page.setViewportSize({ width, height: 860 });
+      await frame.hover();
+      await expect(check).toBeVisible();
+      await expect(frame.locator(".tail-surface svg")).toHaveCSS("opacity", "0");
+      const positions = await frame.evaluate((element) => {
+        const check = element.querySelector(".selection-tail")!.getBoundingClientRect();
+        const grip = element.querySelector(".subscription-grip")!.getBoundingClientRect();
+        const name = element.querySelector(".subscription-name")!.getBoundingClientRect();
+        const header = element.querySelector(".subscription-header")!.getBoundingClientRect();
+        return { check, grip, name, header };
+      });
+      expect(positions.check.left).toBeGreaterThanOrEqual(positions.header.left);
+      expect(positions.check.right).toBeLessThan(positions.name.left);
+      expect(positions.check.bottom).toBeLessThanOrEqual(positions.header.bottom);
+      if (width > 850) {
+        expect(positions.check.right).toBeLessThanOrEqual(positions.grip.left + 1);
+        expect(
+          Math.abs(
+            positions.check.top +
+              positions.check.height / 2 -
+              (positions.grip.top + positions.grip.height / 2),
+          ),
+        ).toBeLessThanOrEqual(1);
+      }
+
+      await check.click();
+      await expect(check).toHaveAttribute("aria-pressed", "true");
+      await expect(frame.locator(".tail-surface svg")).toHaveCSS("opacity", "1");
+      await check.focus();
+      await page.keyboard.press("Tab");
+      await page.keyboard.press("Shift+Tab");
+      await expect(check).toBeFocused();
+      await expect(check).toHaveCSS("outline-style", "none");
+      await expect(frame.locator(".tail-surface")).toHaveCSS("border-top-width", "2px");
+      await check.click();
+      await expect(check).toHaveAttribute("aria-pressed", "false");
+    }
+  });
+
+  test("subscription actions match group button spacing and show the expand control", async ({
+    page,
+  }) => {
+    await setupSubscriptions(page, [
+      makeSubscription("a1b2c3d4", "https://example.com/demo-rules", "Test"),
     ]);
 
-    for (const width of [1440, 900, 390, 360]) {
+    const panel = page.locator(".subscription-panel").first();
+    const expand = panel.locator(".expand-action [data-collapsible-trigger]");
+    for (const width of [1440, 900, 390]) {
+      await page.setViewportSize({ width, height: 860 });
+      await expect(expand).toBeVisible();
+      const measures = await panel.evaluate((element) => {
+        const header = element.querySelector(".subscription-header")!.getBoundingClientRect();
+        const actions = element.querySelector(".subscription-actions")!.getBoundingClientRect();
+        const controls = [
+          ...element.querySelectorAll<HTMLElement>(".subscription-actions .action"),
+        ];
+        const last = controls.at(-1)!.getBoundingClientRect();
+        const actionButtons = controls.slice(2).map((control) => control.getBoundingClientRect());
+        const interfaceRect = element
+          .querySelector(".action.interface [data-select-trigger]")!
+          .getBoundingClientRect();
+        const switchRect = element
+          .querySelector(".action.toggle [data-switch-root]")!
+          .getBoundingClientRect();
+        return {
+          trailingGap: header.right - last.right,
+          interfaceToggleGap: switchRect.left - interfaceRect.right,
+          buttonWidths: actionButtons.map((rect) => rect.width),
+          gaps: actionButtons.slice(1).map((rect, index) => rect.left - actionButtons[index].right),
+          actionsRight: actions.right,
+        };
+      });
+      if (width > 850) {
+        expect(measures.interfaceToggleGap).toBeCloseTo(8.8, 0);
+        expect(measures.trailingGap).toBeGreaterThanOrEqual(7);
+        expect(measures.trailingGap).toBeLessThanOrEqual(10);
+        for (const size of measures.buttonWidths) expect(size).toBeCloseTo(35.2, 0);
+        for (const gap of measures.gaps) expect(gap).toBeCloseTo(4.8, 0);
+      }
+    }
+
+    await expand.click();
+    await expect(expand).toHaveAttribute("aria-expanded", "true");
+    await expect(panel.locator(".subscription-rule")).toBeVisible();
+    await expand.click();
+    await expect(expand).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("subscription name and URL use the shared editable-field focus style", async ({ page }) => {
+    await setupSubscriptions(page, [
+      makeSubscription("a1b2c3d4", "https://example.com/demo-rules", "Test name"),
+    ]);
+
+    for (const width of [1440, 390]) {
+      await page.setViewportSize({ width, height: 860 });
+      for (const selector of [".subscription-name", ".subscription-url-input"]) {
+        const input = page.locator(".subscription-panel").first().locator(selector);
+        await input.focus();
+        const style = await input.evaluate((element) => {
+          const css = getComputedStyle(element);
+          return {
+            paddingLeft: parseFloat(css.paddingLeft),
+            paddingRight: parseFloat(css.paddingRight),
+            borderTop: css.borderTopWidth,
+            borderBottom: css.borderBottomWidth,
+            borderRadius: css.borderRadius,
+            outline: css.outlineStyle,
+            wrapper: element.parentElement?.className,
+          };
+        });
+        expect(style.paddingLeft).toBeGreaterThanOrEqual(10);
+        expect(style.paddingRight).toBeGreaterThanOrEqual(10);
+        expect(style.borderTop).toBe(style.borderBottom);
+        expect(parseFloat(style.borderRadius)).toBeGreaterThan(4);
+        expect(style.outline).toBe("none");
+        expect(style.wrapper).toContain("editable-field");
+      }
+    }
+  });
+
+  test("subscription header keeps metadata together and actions aligned on desktop and mobile", async ({
+    page,
+  }) => {
+    const longName =
+      "Тестовая подписка с очень длинным названием, которое должно показывать многоточие при обрезке";
+    await setupSubscriptions(page, [
+      makeSubscription("a1b2c3d4", "https://example.com/demo-rules", longName),
+    ]);
+
+    for (const width of [2048, 1440, 1150, 1024, 900, 851, 850, 740, 390, 360]) {
       await page.setViewportSize({ width, height: 860 });
       const dimensions = await page
         .locator(".subscription-panel")
@@ -109,22 +306,53 @@ test.describe("Subscriptions", () => {
             return node.getBoundingClientRect();
           };
           return {
+            headerHeight: rect(".subscription-header").height,
             nameY: rect(".subscription-name").y,
+            nameCenter: rect(".subscription-name").y + rect(".subscription-name").height / 2,
+            nameRight: rect(".subscription-name").right,
+            metadataLeft: rect(".subscription-url").left,
+            metadataRight: rect(".subscription-url").right,
+            actionsLeft: rect(".subscription-actions").left,
             actionsY: rect(".subscription-actions").y,
             urlY: rect(".url-line").y,
+            urlCenter: rect(".url-line").y + rect(".url-line").height / 2,
+            actionsCenter:
+              rect(".subscription-actions").y + rect(".subscription-actions").height / 2,
             updateY: rect(".update-line").y,
+            updateBottom: rect(".update-line").bottom,
+            updateCenter: rect(".update-line").y + rect(".update-line").height / 2,
+            updateIntervalRight: rect(".update-interval [data-select-trigger]").right,
+            updateTimeVisible:
+              getComputedStyle(element.querySelector(".update-text")!).display !== "none",
             interfaceHeight: rect(".subscription-interface").height,
             overflow: document.documentElement.scrollWidth - window.innerWidth,
+            nameTitle: element.querySelector<HTMLInputElement>(".subscription-name")?.title,
+            nameTextOverflow: getComputedStyle(
+              element.querySelector<HTMLInputElement>(".subscription-name")!,
+            ).textOverflow,
           };
         });
 
       expect(dimensions.overflow).toBeLessThanOrEqual(1);
+      expect(dimensions.nameTitle).toBe(longName);
+      expect(dimensions.nameTextOverflow).toBe("ellipsis");
+      expect(dimensions.updateTimeVisible).toBe(true);
       expect(dimensions.interfaceHeight).toBeLessThanOrEqual(40);
-      if (width > 700) {
+      if (width > 850) {
+        expect(Math.abs(dimensions.updateCenter - dimensions.nameCenter)).toBeLessThanOrEqual(3);
+      }
+      expect(dimensions.updateBottom).toBeLessThanOrEqual(dimensions.urlY + 60);
+      if (width > 850) {
+        expect(dimensions.headerHeight).toBeLessThanOrEqual(54);
         expect(Math.abs(dimensions.nameY - dimensions.actionsY)).toBeLessThan(12);
-        expect(Math.abs(dimensions.urlY - dimensions.updateY)).toBeLessThan(4);
+        expect(Math.abs(dimensions.urlCenter - dimensions.actionsCenter)).toBeLessThanOrEqual(3);
+        expect(dimensions.nameRight).toBeLessThanOrEqual(dimensions.metadataLeft + 1);
+        expect(dimensions.updateIntervalRight).toBeLessThanOrEqual(dimensions.metadataLeft + 1);
+        expect(dimensions.actionsLeft - dimensions.metadataRight).toBeGreaterThanOrEqual(4);
+        expect(dimensions.actionsLeft - dimensions.metadataRight).toBeLessThanOrEqual(12);
       } else {
-        expect(dimensions.actionsY).toBeGreaterThan(dimensions.updateY);
+        expect(dimensions.urlY).toBeGreaterThanOrEqual(dimensions.updateBottom);
+        expect(dimensions.actionsY).toBeGreaterThan(dimensions.urlY);
       }
     }
 

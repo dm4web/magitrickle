@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Collapsible } from "bits-ui";
-  import { Route } from "lucide-svelte";
+  import { GitBranch, Route } from "lucide-svelte";
   import { createEventDispatcher, getContext, tick } from "svelte";
   import { slide } from "svelte/transition";
 
@@ -92,6 +92,21 @@
   let showFailoverSettings = $state(false);
   let liveRouting = $derived(routingStatus.groups.find((entry) => entry.id === group?.id));
   let routeView = $derived(routeIndicator(liveRouting, group?.enable ?? false));
+  let activeBackup = $derived(
+    Boolean(
+      group?.enable &&
+      liveRouting?.applied &&
+      liveRouting.active_interface !== group.interface &&
+      (group.fallback_interfaces ?? []).includes(liveRouting.active_interface) &&
+      routeView.kind === "healthy",
+    ),
+  );
+  let explicitBlackhole = $derived(
+    group?.interface === "blackhole" &&
+      group.enable &&
+      liveRouting?.applied &&
+      liveRouting.active_interface === "blackhole",
+  );
 
   $effect(() => {
     // Search expansion is temporary; a changed query starts with results open.
@@ -405,11 +420,27 @@
             class:route-healthy={routeView.kind === "healthy"}
             class:route-degraded={routeView.kind === "error"}
             class:route-neutral={routeView.kind === "pending" || routeView.kind === "disabled"}
-            title={liveRouting
-              ? t("Current choice: {interface}", { interface: liveRouting.active_interface || "—" })
-              : t("Waiting for routing status")}
-            aria-label={t(routeView.label)}>{t(routeView.label)}</span
+            class:route-blackhole={explicitBlackhole}
+            title={activeBackup
+              ? t("Backup interface active")
+              : routeView.kind === "error"
+                ? t(routeView.label)
+                : liveRouting
+                  ? t("Current choice: {interface}", {
+                      interface: liveRouting.active_interface || "—",
+                    })
+                  : t("Waiting for routing status")}
+            aria-label={activeBackup
+              ? `${t("Backup interface active")}: ${liveRouting?.active_interface}`
+              : explicitBlackhole
+                ? "blackhole"
+                : t(routeView.label)}
           >
+            {#if activeBackup}
+              <GitBranch class="route-backup-icon" size={14} aria-hidden="true" />
+            {/if}
+            {explicitBlackhole ? "blackhole" : t(routeView.label)}
+          </span>
           <Tooltip value={t(group.enable ? "Disable Group" : "Enable Group")}>
             <Switch class="enable-group" bind:checked={group.enable} />
           </Tooltip>
@@ -709,6 +740,9 @@
   }
 
   .group-actions .route-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
     justify-self: end;
     text-align: right;
     margin-right: 0.45rem;
@@ -727,6 +761,15 @@
 
   .group-actions .route-neutral {
     color: var(--text-2);
+  }
+
+  .group-actions .route-blackhole {
+    color: var(--orange);
+  }
+
+  .group-actions .route-status :global(.route-backup-icon) {
+    flex: 0 0 auto;
+    color: var(--accent);
   }
 
   .group-actions :global([role="tooltip"] > button:not([data-switch-root])),

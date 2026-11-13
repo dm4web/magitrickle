@@ -7,7 +7,7 @@ export function defaultGroup(): Group {
   return {
     enable: true,
     id: randomId(),
-    interface: interfaces.list.at(0)?.id ?? "",
+    interface: interfaces.list.find((item) => item.id !== "blackhole")?.id ?? "",
     fallback_interfaces: [],
     check_target: "",
     check_interval: 5,
