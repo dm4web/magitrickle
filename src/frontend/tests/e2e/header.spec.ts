@@ -20,6 +20,45 @@ test.describe("Header Settings", () => {
     await expect(page.locator(".header-settings .version-text")).toHaveCount(0);
   });
 
+  test("shows the running Neo version in green and an upgrade arrow only when newer", async ({ page }) => {
+    await page.route("**/system/update/check", (route) =>
+      route.fulfill({
+        json: {
+          currentVersion: "0",
+          latestVersion: "1",
+          available: true,
+          releaseUrl: "https://github.com/dm4web/magitrickle/releases/tag/1",
+        },
+      }),
+    );
+    await page.reload();
+
+    const current = page.locator(".app-brand .brand-version");
+    await expect(current).toHaveText("0");
+    const successColor = await page.evaluate(() => {
+      const sample = document.createElement("span");
+      sample.style.color = "var(--color-success)";
+      document.body.appendChild(sample);
+      const color = getComputedStyle(sample).color;
+      sample.remove();
+      return color;
+    });
+    await expect(current).toHaveCSS("color", successColor);
+    const arrow = page.locator(".app-brand .brand-update");
+    await expect(arrow).toBeVisible();
+    await expect(arrow).toHaveAttribute(
+      "href",
+      "https://github.com/dm4web/magitrickle/releases/tag/1",
+    );
+
+    await page.route("**/system/update/check", (route) =>
+      route.fulfill({ json: { currentVersion: "1", latestVersion: "1", available: false } }),
+    );
+    await page.reload();
+    await expect(current).toHaveText("1");
+    await expect(arrow).toHaveCount(0);
+  });
+
   test("should rotate locale", async ({ page }) => {
     const localeBtn = page.locator(".locale button");
 

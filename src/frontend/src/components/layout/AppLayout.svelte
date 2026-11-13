@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { Tabs } from "bits-ui";
 
+  import { token } from "../../data/auth.svelte";
   import { t } from "../../data/locale.svelte";
   import GroupsView from "../../modules/groups/GroupsView.svelte";
   import SubscriptionsView from "../../modules/subscriptions/SubscriptionsView.svelte";
@@ -14,7 +16,45 @@
   import HeaderSettings from "./HeaderSettings.svelte";
 
   import { version } from "../../data/build";
-  import { LayoutList, Menu, RSS } from "../ui/icons";
+  import { ArrowUp, LayoutList, Menu, RSS } from "../ui/icons";
+
+  type UpdateStatus = {
+    currentVersion: string;
+    latestVersion?: string;
+    available: boolean;
+    releaseUrl?: string;
+  };
+
+  let updateStatus = $state<UpdateStatus | null>(null);
+  const displayedVersion = $derived(
+    updateStatus?.currentVersion && /^\d+$/.test(updateStatus.currentVersion)
+      ? updateStatus.currentVersion
+      : version,
+  );
+
+  onMount(() => {
+    let active = true;
+
+    async function checkUpdate() {
+      try {
+        const headers: Record<string, string> = {};
+        if (token.current) headers.Authorization = `Bearer ${token.current}`;
+        const response = await fetch("/api/v1/system/update/check", { headers });
+        if (!response.ok) return;
+        const status = (await response.json()) as UpdateStatus;
+        if (active && typeof status.currentVersion === "string") updateStatus = status;
+      } catch {
+        // The version remains visible when GitHub or the backend is offline.
+      }
+    }
+
+    void checkUpdate();
+    const interval = window.setInterval(() => void checkUpdate(), 60 * 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  });
 
   const lastActiveTab = persistedState("active_tab", "groups");
   let active_tab = $state(lastActiveTab.current);
@@ -72,7 +112,21 @@
           <span class="brand-text">
             <span class="brand-name">MagiTrickle Neo</span>
             <span class="brand-meta">
-              <span class="brand-version" title={t("Build") + ": " + version}>{version}</span>
+              <span class="brand-version" title={t("Build") + ": " + displayedVersion}
+                >{displayedVersion}</span
+              >
+              {#if updateStatus?.available && updateStatus.releaseUrl}
+                <a
+                  class="brand-update"
+                  href={updateStatus.releaseUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${t("Update available")}: ${updateStatus.latestVersion}`}
+                  aria-label={`${t("Update available")}: ${updateStatus.latestVersion}`}
+                >
+                  <ArrowUp size={16} strokeWidth={2.5} />
+                </a>
+              {/if}
             </span>
           </span>
         </div>
@@ -198,8 +252,20 @@
     border: 1px solid var(--border-light);
     border-radius: 0.45rem;
     font-weight: 600;
-    color: var(--text-1);
+    color: var(--color-success);
     line-height: 1;
+  }
+
+  .brand-update {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-success);
+    text-decoration: none;
+  }
+
+  .brand-update:hover {
+    color: var(--color-accent);
   }
 
   .brand-symbol {

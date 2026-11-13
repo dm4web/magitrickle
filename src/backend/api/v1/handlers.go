@@ -17,12 +17,13 @@ import (
 
 // Handler предоставляет набор методов для обработки API запросов.
 type Handler struct {
-	app app.Main
+	app     app.Main
+	updates *releaseChecker
 }
 
 // NewHandler создаёт новый обработчик для API v1.
 func NewHandler(a app.Main) *Handler {
-	return &Handler{app: a}
+	return &Handler{app: a, updates: newReleaseChecker()}
 }
 
 var errRuleNotFound = errors.New("rule not found")
