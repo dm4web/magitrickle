@@ -1,14 +1,15 @@
 name: Release packages
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - '[0-9]*'
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.release.tag_name }}
+  group: release-${{ github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -21,10 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.ref_name }}
       - name: Verify Neo release version
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           case "$RELEASE_TAG" in
             ''|*[!0-9]*) echo "Neo release tag must be a single non-negative integer" >&2; exit 1 ;;
@@ -69,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -101,7 +102,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: src/backend/go.mod
@@ -124,12 +125,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
           fetch-tags: true
       - name: Verify release tag
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           test "$(git rev-parse "refs/tags/${RELEASE_TAG}^{commit}")" = "$(git rev-parse HEAD)"
       - uses: actions/setup-go@v5
@@ -177,7 +178,7 @@ jobs:
       - name: Build packages
         env:
           BUILD_CONFIG: ${{ matrix.config }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           cp "$BUILD_CONFIG" .config
           make FRONTEND_PREBUILT=1 TAG="$RELEASE_TAG" package
@@ -185,7 +186,7 @@ jobs:
         env:
           TARGET_NAME: ${{ matrix.name }}
           PLATFORM: ${{ matrix.platform }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           mkdir -p release-output
           find .build -maxdepth 1 -type f \( -name 'magitrickle_*.ipk' -o -name 'magitrickle_*.apk' \) -exec cp -t release-output -- {} +
@@ -208,7 +209,7 @@ jobs:
           retention-days: 7
 
   publish:
-    name: Attach packages to GitHub Release
+    name: Publish GitHub Release with verified packages
     needs: [prepare, packages]
     runs-on: ubuntu-24.04
     permissions:
@@ -231,10 +232,17 @@ jobs:
           find . -maxdepth 1 -type f \( -name '*.ipk' -o -name '*.apk' -o -name '*.pub' \) -print0 |
             sort -z | xargs -0 sha256sum > SHA256SUMS
           test "$(wc -l < SHA256SUMS)" -eq "$((EXPECTED_TOTAL + EXPECTED_APK * 2))"
-      - name: Upload packages to GitHub Release
+      - name: Publish packages as MagiTrickle Neo release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release upload "$RELEASE_TAG" release-assets/* --repo "$GH_REPO" --clobber
+          if gh release view "$RELEASE_TAG" --repo "$GH_REPO" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/* --repo "$GH_REPO" --clobber
+          else
+            gh release create "$RELEASE_TAG" release-assets/* \
+              --repo "$GH_REPO" --verify-tag \
+              --title "MagiTrickle Neo $RELEASE_TAG" \
+              --notes "MagiTrickle Neo $RELEASE_TAG. Keenetic Entware packages and SHA256SUMS."
+          fi
