@@ -72,6 +72,43 @@ test.describe("Groups Search", () => {
     await expect(page.locator(".group-wrapper:visible")).toHaveCount(2);
   });
 
+  test("should focus the page search instead of browser search on Ctrl+F", async ({ page }) => {
+    await expect(groupsPage.searchInput).toBeAttached();
+    await page.keyboard.press("Control+f");
+
+    await expect(groupsPage.searchInput).toBeFocused();
+  });
+
+  test("should not intercept Ctrl+F while a dialog is open", async ({ page }) => {
+    await expect(groupsPage.searchInput).toBeAttached();
+    await page.locator(".info button").click();
+    await expect(page.locator('[data-dialog-content][data-state="open"]')).toBeVisible();
+
+    const browserSearchWasPrevented = await page.evaluate(() => {
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        code: "KeyF",
+        ctrlKey: true,
+      });
+      window.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+
+    expect(browserSearchWasPrevented).toBe(false);
+  });
+
+  test("should clear and collapse page search on Escape", async ({ page }) => {
+    await groupsPage.search("Alpha");
+    await expect(page.locator(".group-wrapper:visible")).toHaveCount(1);
+
+    await page.keyboard.press("Escape");
+
+    await expect(groupsPage.searchInput).toHaveValue("");
+    await expect(groupsPage.searchInput).not.toBeFocused();
+    await expect(page.locator(".group-wrapper:visible")).toHaveCount(2);
+  });
+
   test("should filter rules by name", async ({ page }) => {
     // Override mock to have rules
     await page.route("**/groups?with_rules=true", async (route) => {
@@ -154,6 +191,75 @@ test.describe("Groups Search", () => {
     await expect(page.locator(".rule .pattern input").first()).toHaveValue("google.com");
   });
 
+  test("opens matching rules automatically and restores manual open state when search clears", async ({
+    page,
+  }) => {
+    await page.route("**/groups?with_rules=true", (route) =>
+      route.fulfill({
+        json: {
+          groups: [
+            {
+              id: "1",
+              name: "Media services",
+              rules: [
+                {
+                  id: "rule-1",
+                  name: "Netflix",
+                  rule: "netflix.com",
+                  type: "domain",
+                  enable: true,
+                },
+                {
+                  id: "rule-2",
+                  name: "YouTube",
+                  rule: "youtube.com",
+                  type: "domain",
+                  enable: true,
+                },
+              ],
+              color: "#7799cc",
+              enable: true,
+              interface: "eth0",
+            },
+          ],
+        },
+      }),
+    );
+    await groupsPage.goto();
+    const group = page.locator(".group-wrapper").first();
+    const toggle = group.locator(".group-header [data-collapsible-trigger]");
+
+    await expect(group.locator(".rule:visible")).toHaveCount(0);
+    await groupsPage.search("netflix");
+    await expect(group.locator(".rule:visible")).toHaveCount(1);
+    await expect(group.locator(".rule:visible .pattern input")).toHaveValue("netflix.com");
+
+    // Manual collapse remains available during a search.
+    await toggle.click();
+    await expect(group.locator(".rule:visible")).toHaveCount(0);
+    await groupsPage.search("netfli");
+    await expect(group.locator(".rule:visible")).toHaveCount(1);
+
+    await groupsPage.search("");
+    await expect(group.locator(".rule:visible")).toHaveCount(0);
+
+    // A group that was open before searching stays open after clearing.
+    await toggle.click();
+    await expect(group.locator(".rule:visible")).toHaveCount(2);
+    await groupsPage.search("youtube");
+    await expect(group.locator(".rule:visible")).toHaveCount(1);
+    await groupsPage.search("");
+    await expect(group.locator(".rule:visible")).toHaveCount(2);
+
+    // Matching a group name reveals its rules immediately too.
+    await toggle.click();
+    await expect(group.locator(".rule:visible")).toHaveCount(0);
+    await groupsPage.search("Media services");
+    await expect(group.locator(".rule:visible")).toHaveCount(2);
+    await groupsPage.search("");
+    await expect(group.locator(".rule:visible")).toHaveCount(0);
+  });
+
   test("should highlight matched text in group name, rule name, and pattern", async ({ page }) => {
     await page.route("**/groups?with_rules=true", async (route) => {
       await route.fulfill({
@@ -202,9 +308,9 @@ test.describe("Groups Search", () => {
     await expect(group.locator(".rule")).toHaveCount(1);
     const nameMatchedRule = group.locator('.rule[data-uuid="r-name"]');
     await expect(nameMatchedRule.locator(".name .search-highlight-overlay mark")).toHaveCount(1);
-    await expect(nameMatchedRule.locator(".name .search-highlight-overlay mark").first()).toHaveText(
-      "Alpha",
-    );
+    await expect(
+      nameMatchedRule.locator(".name .search-highlight-overlay mark").first(),
+    ).toHaveText("Alpha");
     await expect(nameMatchedRule.locator(".pattern .search-highlight-overlay mark")).toHaveCount(0);
     await expect(groupNameOverlay.locator("mark")).toHaveCount(0);
 

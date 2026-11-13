@@ -243,6 +243,11 @@ export class ChangeTracker<T extends object> {
     return this.dirtyObjectProps.size > 0 || this.dirtyArrays.size > 0;
   }
 
+  /** Every proxy edit increments this value, including individual keystrokes. */
+  get changeVersion() {
+    return this.version;
+  }
+
   get changes() {
     if (!this.isDirty) {
       return { added: [], deleted: [], mutated: [] };

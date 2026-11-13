@@ -3,9 +3,8 @@
   import GenericDialog from "./ui/GenericDialog.svelte";
   import GenericIcon from "./ui/GenericIcon.svelte";
 
+  import { version } from "../data/build";
   import { Bug, Gitlab, Globe, Sponsorship } from "./ui/icons";
-
-  const version = import.meta.env.VITE_PKG_VERSION || "0.0.0";
 
   type Props = {
     open: boolean;
@@ -73,10 +72,10 @@
           <Sponsorship size={22} />
         </div>
         <div class="text">
-           {t("Financial Contributions")}
-           <a target="_blank" rel="noopener noreferrer" href="https://boosty.to/magitrickle">
-             https://boosty.to/magitrickle
-           </a>
+          {t("Financial Contributions")}
+          <a target="_blank" rel="noopener noreferrer" href="https://boosty.to/magitrickle">
+            https://boosty.to/magitrickle
+          </a>
         </div>
       </div>
     </div>

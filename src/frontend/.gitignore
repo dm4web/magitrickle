@@ -21,3 +21,12 @@ dist-ssr
 *.sw?
 
 dev/groups*.json
+# SvelteKit
+.svelte-kit
+build
+
+# Local build/test caches
+.npm-cache
+.deno-cache
+vite.config.d.ts
+.playwright-browsers

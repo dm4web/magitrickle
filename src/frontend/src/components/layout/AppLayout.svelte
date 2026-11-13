@@ -13,6 +13,7 @@
   import Toast from "../feedback/Toast.svelte";
   import HeaderSettings from "./HeaderSettings.svelte";
 
+  import { version } from "../../data/build";
   import { LayoutList, Menu, RSS } from "../ui/icons";
 
   const lastActiveTab = persistedState("active_tab", "groups");
@@ -28,7 +29,32 @@
 
   const toggleMenu = () => (isMenuOpen = !isMenuOpen);
   const closeMenu = () => (isMenuOpen = false);
+
+  function handleSearchShortcut(event: KeyboardEvent) {
+    if (
+      event.isComposing ||
+      event.altKey ||
+      event.shiftKey ||
+      !(event.ctrlKey || event.metaKey) ||
+      event.code !== "KeyF"
+    ) {
+      return;
+    }
+
+    if (document.querySelector('[data-dialog-content][data-state="open"]')) return;
+
+    const searchInput = document.querySelector<HTMLInputElement>(
+      '[data-tabs-content][data-state="active"] [data-page-search]',
+    );
+    if (!searchInput) return;
+
+    event.preventDefault();
+    searchInput.focus();
+    searchInput.select();
+  }
 </script>
+
+<svelte:window onkeydown={handleSearchShortcut} />
 
 <Toast />
 <Overlay />
@@ -41,10 +67,19 @@
   <Tabs.Root bind:value={active_tab}>
     <nav>
       <div class="nav-left">
+        <div class="app-brand" aria-label="MagiTrickle Neo">
+          <span class="brand-symbol">M</span>
+          <span class="brand-text">
+            <span class="brand-name">MagiTrickle Neo</span>
+            <span class="brand-meta">
+              <span class="brand-version" title={t("Build") + ": " + version}>{version}</span>
+            </span>
+          </span>
+        </div>
         <button
           type="button"
           class="mobile-dropdown-btn"
-          aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+          aria-label={t(isMenuOpen ? "Close menu" : "Open menu")}
           aria-expanded={isMenuOpen}
           onclick={toggleMenu}
         >
@@ -97,12 +132,12 @@
     flex-direction: column;
     align-items: center;
     margin-bottom: 2rem;
-    padding: 0.3rem;
+    padding: 1rem clamp(0.5rem, 2vw, 1.5rem);
   }
 
   :global([data-tabs-root]) {
     width: 100%;
-    max-width: 1000px;
+    max-width: 1280px;
     display: flex;
     flex-direction: column;
   }
@@ -116,13 +151,66 @@
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    max-width: 1000px;
+    max-width: 1280px;
     position: relative;
+    border-bottom: 1px solid var(--color-border);
+    padding: 0.75rem 0.4rem 1rem;
+    gap: 1rem;
   }
 
   .nav-left {
     display: flex;
     align-items: center;
+    min-width: 0;
+    gap: 1.3rem;
+  }
+
+  .app-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .brand-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .brand-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0;
+    color: var(--text-2);
+  }
+
+  .brand-version {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    padding: 0.22rem 0.46rem;
+    border: 1px solid var(--border-light);
+    border-radius: 0.45rem;
+    font-weight: 600;
+    color: var(--text-1);
+    line-height: 1;
+  }
+
+  .brand-symbol {
+    display: inline-grid;
+    place-items: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 0.65rem;
+    background: color-mix(in srgb, var(--color-accent) 18%, var(--color-bg-secondary));
+    border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+    color: var(--color-accent);
   }
 
   .mobile-dropdown-btn {
@@ -137,15 +225,18 @@
   :global([data-tabs-list]) {
     display: flex;
     flex-direction: row;
-    gap: 1rem;
-    background: transparent;
+    gap: 0.4rem;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 0.8rem;
+    padding: 0.25rem;
   }
 
   :global([data-tabs-trigger]) {
-    padding: 0.5rem 0.5rem;
-    border: none;
-    border-bottom: 2px solid transparent;
-    font-size: 1.5rem;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: 0.6rem;
+    font-size: 0.92rem;
     font-family: var(--font);
     background-color: transparent;
     color: var(--text-2);
@@ -164,8 +255,9 @@
   }
 
   :global([data-tabs-trigger][data-state="active"]) {
-    color: var(--blue-light-extra);
-    border-color: var(--blue-light-extra);
+    color: var(--color-accent);
+    background: var(--color-bg-tertiary);
+    border-color: var(--color-border);
   }
 
   :global([data-tabs-trigger]:hover) {
@@ -175,6 +267,18 @@
   :global([data-tabs-content]) {
     padding-top: 1rem;
     outline: none;
+  }
+
+  @media (max-width: 980px) {
+    .brand-name {
+      display: none;
+    }
+  }
+
+  @media (max-width: 700px) {
+    .brand-version {
+      font-size: 0.62rem;
+    }
   }
 
   @media (max-width: 700px) {
@@ -229,12 +333,12 @@
 
     :global([data-tabs-list]) {
       flex-direction: column;
-      gap: 1.2rem;
+      gap: 0.35rem;
       align-items: flex-start;
     }
 
     :global([data-tabs-trigger]) {
-      font-size: 1.5rem;
+      font-size: 0.95rem;
       font-weight: 500;
       border-bottom: none;
       padding: 0;

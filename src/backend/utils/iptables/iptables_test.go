@@ -3,8 +3,11 @@
 package iptables
 
 import (
+	"errors"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 )
 
 // TestChainPatch проверяет, что правила добавляются к существующим
@@ -577,5 +580,160 @@ func TestPatchRemovesDuplicates(t *testing.T) {
 
 	if !reflect.DeepEqual(rules, expected) {
 		t.Errorf("Patch duplicate removal failed.\nExpected: %v\nGot: %v", expected, rules)
+	}
+}
+
+// slowSave lets another goroutine run between reading the current rules and applying the change, as it does with
+// the real iptables-save and iptables-restore, and makes the fake safe for concurrent use.
+type slowSave struct {
+	mu    sync.Mutex
+	inner *FakeIPTables
+}
+
+func (s *slowSave) Proto() Protocol { return s.inner.Proto() }
+
+func (s *slowSave) Save() ([]byte, error) {
+	s.mu.Lock()
+	data, err := s.inner.Save()
+	s.mu.Unlock()
+	time.Sleep(20 * time.Millisecond)
+	return data, err
+}
+
+func (s *slowSave) Restore(data []byte) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.inner.Restore(data)
+}
+
+// TestConcurrentCommitsDoNotDuplicateRules: commits are serialized, so the second one sees what the first one did.
+func TestConcurrentCommitsDoNotDuplicateRules(t *testing.T) {
+	fake := NewFakeIPTables(ProtocolIPv4)
+	fake.SetInitialRules("filter", "FORWARD", [][]string{{"-i", "eth0", "-j", "ACCEPT"}})
+	ipt := NewIPTables(&slowSave{inner: fake})
+
+	if err := ipt.RegisterChainPatch("filter", "FORWARD"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipt.Append("filter", "FORWARD", "-j", "MT_chain"); err != nil {
+		t.Fatal(err)
+	}
+
+	const commits = 4
+	errs := make(chan error, commits)
+	var wg sync.WaitGroup
+	for i := 0; i < commits; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs <- ipt.Commit()
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Errorf("Commit failed: %v", err)
+		}
+	}
+
+	expected := [][]string{{"-i", "eth0", "-j", "ACCEPT"}, {"-j", "MT_chain"}}
+	if rules := fake.GetRules("filter", "FORWARD"); !reflect.DeepEqual(rules, expected) {
+		t.Errorf("rules after concurrent commits:\nexpected: %v\ngot:      %v", expected, rules)
+	}
+}
+
+// TestSetChainReplacesContent проверяет, что SetChain заменяет содержимое
+// цепочки целиком, в том числе на пустое.
+func TestSetChainReplacesContent(t *testing.T) {
+	fake := NewFakeIPTables(ProtocolIPv4)
+	fake.SetInitialRules("mangle", "MT_ROUTING", [][]string{{"-j", "MT_old"}})
+	ipt := NewIPTables(fake)
+
+	if err := ipt.SetChain("mangle", "MT_ROUTING", [][]string{{"-j", "MT_a"}, {"-j", "MT_b"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipt.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	want := [][]string{{"-j", "MT_a"}, {"-j", "MT_b"}}
+	if got := fake.GetRules("mangle", "MT_ROUTING"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("chain = %v, want %v", got, want)
+	}
+
+	if err := ipt.SetChain("mangle", "MT_ROUTING", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipt.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.GetRules("mangle", "MT_ROUTING"); len(got) != 0 {
+		t.Fatalf("chain = %v, want empty", got)
+	}
+}
+
+func TestCommitForgetsDeletedChains(t *testing.T) {
+	fake := NewFakeIPTables(ProtocolIPv4)
+	ipt := NewIPTables(fake)
+	if err := ipt.RegisterChainOverride("filter", "X"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipt.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipt.RegisterChainDelete("filter", "X"); err != nil {
+		t.Fatal(err)
+	}
+	if err := ipt.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	if fake.ChainExists("filter", "X") {
+		t.Fatal("chain was not deleted")
+	}
+	if _, ok := ipt.rules["filter"]["X"]; ok {
+		t.Error("registration of a deleted chain is kept")
+	}
+}
+
+// flakyExecutable fails the first failures Restore calls, like iptables-restore does when ndm rewrote the table
+// between reading the rules and applying the difference.
+type flakyExecutable struct {
+	*FakeIPTables
+	failures int
+	restores int
+}
+
+func (f *flakyExecutable) Restore(data []byte) error {
+	f.restores++
+	if f.restores <= f.failures {
+		return errors.New("iptables-restore: table changed")
+	}
+	return f.FakeIPTables.Restore(data)
+}
+
+func TestCommitRetriesTransientFailure(t *testing.T) {
+	old := commitRetryDelay
+	commitRetryDelay = time.Millisecond
+	defer func() { commitRetryDelay = old }()
+
+	for _, tc := range []struct {
+		failures int
+		wantErr  bool
+	}{{0, false}, {commitAttempts - 1, false}, {commitAttempts, true}} {
+		fake := &flakyExecutable{FakeIPTables: NewFakeIPTables(ProtocolIPv4), failures: tc.failures}
+		ipt := NewIPTables(fake)
+		if err := ipt.RegisterChainOverride("filter", "MT_TEST"); err != nil {
+			t.Fatal(err)
+		}
+		if err := ipt.Append("filter", "MT_TEST", "-j", "ACCEPT"); err != nil {
+			t.Fatal(err)
+		}
+		err := ipt.Commit()
+		if (err != nil) != tc.wantErr {
+			t.Fatalf("failures=%d: err=%v, wantErr=%v", tc.failures, err, tc.wantErr)
+		}
+		if !tc.wantErr && len(fake.GetRules("filter", "MT_TEST")) != 1 {
+			t.Fatalf("failures=%d: rule was not applied", tc.failures)
+		}
 	}
 }

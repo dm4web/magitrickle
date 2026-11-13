@@ -1,24 +1,22 @@
-import { defineConfig } from "vite";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { ViteMinifyPlugin  } from "vite-plugin-minify";
+import { sveltekit } from "@sveltejs/kit/vite";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig, loadEnv } from "vite";
 
-export default defineConfig(() => ({
-  plugins: [
-    svelte({
-      onwarn(warning, defaultHandler) {
-        if (warning.code === "a11y_interactive_supports_focus") return;
-        if (warning.code === "a11y_click_events_have_key_events") return;
-        if (warning.code === "a11y_no_static_element_interactions") return;
-
-        defaultHandler(warning);
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  return {
+    plugins: [tailwindcss(), sveltekit()],
+    server: {
+      proxy: {
+        "/api": {
+          target: env.VITE_API_TARGET || "http://127.0.0.1:6969",
+          changeOrigin: true,
+        },
       },
-    }),
-    ViteMinifyPlugin(),
-  ],
-  build: {
-    cssTarget: "firefox115",
-    emptyOutDir: true,
-    target: "esnext",
-    // assetsInlineLimit: 400000, // inline fonts
-  },
-}));
+    },
+    build: {
+      cssTarget: "firefox115",
+      target: "esnext",
+    },
+  };
+});

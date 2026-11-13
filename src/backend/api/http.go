@@ -98,6 +98,14 @@ func SetupHTTP(a app.Main, errChan chan error) (*http.Server, error) {
 			w.Header().Set("Content-Type", "image/png")
 		case ".svg":
 			w.Header().Set("Content-Type", "image/svg+xml")
+		case ".woff2":
+			w.Header().Set("Content-Type", "font/woff2")
+		case ".woff":
+			w.Header().Set("Content-Type", "font/woff")
+		case ".json", ".map":
+			w.Header().Set("Content-Type", "application/json")
+		case ".webmanifest":
+			w.Header().Set("Content-Type", "application/manifest+json")
 		default:
 			w.Header().Set("Content-Type", "text/plain")
 		}

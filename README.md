@@ -1,143 +1,93 @@
 <p align="center">
-  <img src="img/logo256.png" alt="MagiTrickle logo"/>
+  <img src="img/main_screenshot.png" alt="MagiTrickle Neo WebUI" />
 </p>
 
-MagiTrickle
-=======
+<h1 align="center">MagiTrickle Neo</h1>
 
-## Назначение
+<p align="center">Выбор маршрута для доменов и подсетей на маршрутизаторах Keenetic с Entware.</p>
 
-MagiTrickle (произносится как *Мэджитрикл*) – утилита для точечной маршрутизации сетевого трафика по заданным доменным именам. Представляет собой установочный пакет, устанавливаемый в дополнение к операционной системе маршрутизатора.
+## Возможности
 
-<p align="center">
-  <img src="img/main_screenshot.png" alt="MagiTrickle Screenshot"/>
-</p>
+- **Маршрутизация по правилам:** домены, домены с поддоменами, wildcard-шаблоны, регулярные выражения, подсети IPv4 и IPv6.
+- **Группы:** собственные правила, выбранный интерфейс, включение/выключение, импорт и экспорт конфигурации.
+- **Failover:** основной и резервные интерфейсы с настраиваемым приоритетом, необязательной TCP-проверкой доступности, интервалом и тайм-аутом проверок.
+- **Blackhole:** выбор в качестве единственного маршрута группы блокирует её трафик.
+- **Подписки:** загрузка списков правил по URL, периодическое обновление и ручная синхронизация.
+- **WebUI:** управление группами и подписками, индикация текущего маршрута и активного резерва, статистика по кнопке, массовые действия, автосохранение и необязательная авторизация.
 
-Принцип работы основан на подмене основного DNS-сервера через промежуточный компонент без его отключения. Это позволяет перехватывать входящие DNS-запросы, кешировать ответы и сопоставлять IP-адреса с доменными именами. Благодаря этому становится возможной маршрутизация трафика без необходимости очистки DNS-кэша на стороне клиентов. Очистка кэша требуется только при запуске или перезапуске сервиса MagiTrickle, поскольку в этот момент кэш ещё не прогрет, и маршрутизация невозможна до первого запроса к нужному домену.
+## Как это работает
 
-## Установка (Entware)
+MagiTrickle обрабатывает DNS-запросы клиентов и ответы DNS-сервера, сопоставляет домены с правилами и добавляет соответствующие IP-адреса в наборы `ipset`. Маршрутизация этих адресов выполняется через назначенные группе интерфейсы при помощи `iptables` и политик маршрутизации Linux. Правила подсетей применяются непосредственно, без ожидания DNS-запросов.
 
-1. Добавление репозитория в пакетный менеджер:
-```shell
-wget -qO- http://bin.magitrickle.dev/packages/add_repo.sh | sh
+Для группы можно задать упорядоченный список резервных интерфейсов. При отказе основного выбирается первый доступный резерв; после восстановления основного маршрут может вернуться на него. Если включена TCP-проверка, доступность определяется по соединению с указанным адресом через проверяемый интерфейс. Без TCP-адреса проверяется состояние самого интерфейса.
+
+`blackhole` можно выбрать как самостоятельный маршрут группы, чтобы блокировать её трафик. Защита от утечки в таблицах маршрутизации также не позволяет направить предназначенный группе трафик через произвольный маршрут при исчезновении рабочего маршрута.
+
+DNS-кэш и уже установленные клиентские соединения могут влиять на момент применения новых доменных правил: адрес попадёт в маршрут после получения и обработки соответствующего DNS-ответа.
+
+## Установка на Keenetic (Entware)
+
+Для установки требуется Entware.
+
+1. Скачайте `.ipk` для своей архитектуры со страницы [GitHub Releases](https://github.com/dm4web/magitrickle/releases). Архитектуру Entware можно проверить командой `opkg print-architecture`.
+2. Скопируйте пакет на маршрутизатор как `/opt/tmp/magitrickle.ipk` и установите его:
+
+```sh
+opkg update
+opkg install /opt/tmp/magitrickle.ipk
 ```
-2. Установка пакета:
-```shell
-opkg update && opkg install magitrickle
-```
-3. Запуск пакета:
-```shell
+
+Для ручного запуска или перезапуска сервиса используйте:
+
+```sh
 /opt/etc/init.d/S99magitrickle start
-```
-
-Дальнейшее обновление можно осуществлять с помощью:
-```shell
-opkg update && opkg install magitrickle
 /opt/etc/init.d/S99magitrickle restart
 ```
 
-## Установка (OpenWrt >= 25.12.X)
+После запуска WebUI по умолчанию доступен по адресу `http://<IP-маршрутизатора>:8080`. Основной конфигурационный файл: `/opt/var/lib/magitrickle/config.yaml`. В стандартной конфигурации авторизация WebUI **выключена**: включите её перед доступом из недоверенных сетей и не открывайте порт напрямую в интернет.
 
-1. Добавление репозитория в пакетный менеджер:
-```shell
-wget -qO- http://bin.magitrickle.dev/packages/add_repo.sh | sh
-```
-2. Установка пакета:
-```shell
-apk update && apk add magitrickle
-```
-3. Запуск пакета:
-```shell
-service magitrickle start
-```
+## Типы правил
 
-Дальнейшее обновление можно осуществлять с помощью:
-```shell
-apk update && apk add magitrickle
-service magitrickle restart
-```
+### Namespace — домен и поддомены
 
-## Установка (OpenWrt <= 24.10.X)
+`example.com` совпадает с `example.com`, `sub.example.com`, `sub.sub.example.com`, но не с `anotherexample.com` и `example.net`.
 
-1. Добавление репозитория в пакетный менеджер:
-```shell
-wget -qO- http://bin.magitrickle.dev/packages/add_repo.sh | sh
-```
-2. Установка пакета:
-```shell
-opkg update && opkg install magitrickle
-```
-3. Запуск пакета:
-```shell
-service magitrickle start
-```
+### Wildcard — шаблон
 
-Дальнейшее обновление можно осуществлять с помощью:
-```shell
-opkg update && opkg install magitrickle
-service magitrickle restart
+`*` соответствует любой последовательности символов (включая пустую), `?` — одному символу. Например, `*example.com` совпадает с `example.com`, `sub.example.com` и `anotherexample.com`, но не с `example.net`.
+
+### Domain — точный домен
+
+`sub.example.com` совпадает только с `sub.example.com`, но не с `example.com` или `other.sub.example.com`.
+
+### RegExp — регулярное выражение
+
+Используется движок [dlclark/regexp2](https://github.com/dlclark/regexp2). Например, `^[a-z]*example\\.com$` совпадает с `example.com` и `anotherexample.com`, но не с `sub.example.com`.
+
+### Subnet / Subnet6 — подсеть IPv4 / IPv6
+
+`192.168.1.0/24` и `2001:db8::/32` направляют соответствующие диапазоны адресов без необходимости определять доменные имена через DNS.
+
+## Разработка и проверка
+
+WebUI расположен в `src/frontend` (Svelte + TypeScript), backend — в `src/backend` (Go). Для локальных проверок:
+
+```sh
+cd src/frontend
+npm ci
+npm run check
+npm run test:unit
+npm run build
+npm run test:e2e
 ```
 
-## Описание типов правил
+Linux-тесты failover, сборка IPK и тесты backend выполняются в [CI](https://github.com/dm4web/magitrickle/actions/workflows/check.yml). Подробности об эмуляторе Keenetic и интеграционных проверках — в [e2e/README.md](e2e/README.md). Проверки интерфейса локально используют mock API и не переключают реальные сетевые маршруты.
 
-### Namespace (Именное пространство)
+## Проект и ссылки
 
-Охватывает указанный домен и все его поддомены.
-
-Например, при записи `example.com` будут обрабатываться:
-```
-✅ example.com
-✅ sub.example.com
-✅ sub.sub.example.com
-❌ anotherexample.com
-❌ example.net
-```
-
-### Wildcard (Подстановочный шаблон)
-
-Шаблон с `*` и `?` — позволяет задавать гибкие условия:
-- `*` — любое количество любых символов
-- `?` — ровно один любой символ
-
-Например, при записи `*example.com` будут обрабатываться:
-```
-✅ example.com
-✅ sub.example.com
-✅ sub.sub.example.com
-✅ anotherexample.com
-❌ example.net
-```
-
-### Domain (Точный домен)
-
-Правило применяется только к строго указанному домену, без поддоменов.
-
-Например, при записи `sub.example.com` будут обрабатываться:
-```
-❌ example.com
-✅ sub.example.com
-❌ sub.sub.example.com
-❌ anotherexample.com
-❌ example.net
-```
-
-### RegExp (Регулярное выражение)
-
-Для опытных пользователей. Используется парсер [dlclark/regexp2](https://github.com/dlclark/regexp2).
-
-Например, при записи `^[a-z]*example\.com$` будут обрабатываться:
-```
-✅ example.com
-❌ sub.example.com
-❌ sub.sub.example.com
-✅ anotherexample.com
-❌ example.net
-```
-
-## Поддержка
-
-* [Официальный сайт](https://magitrickle.dev)
-* [Форум на Keenetic Community](https://forum.keenetic.ru/topic/20125-magitrickle)
-* [Канал Telegram](https://t.me/MagiTrickle)
-* [Чат Telegram](https://t.me/MagiTrickleChat)
-* [Финансовая поддержка](https://boosty.to/magitrickle)
+- [Этот репозиторий (GitHub)](https://github.com/dm4web/magitrickle)
+- [Исходный проект (GitLab)](https://gitlab.com/magitrickle/magitrickle)
+- [Сайт MagiTrickle](https://magitrickle.dev)
+- [Тема на Keenetic Community](https://forum.keenetic.ru/topic/20125-magitrickle)
+- [Telegram-канал](https://t.me/MagiTrickle) · [Telegram-чат](https://t.me/MagiTrickleChat)
+- [Поддержка исходного проекта](https://boosty.to/magitrickle)

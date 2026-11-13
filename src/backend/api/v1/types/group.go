@@ -13,19 +13,27 @@ type GroupsRes struct {
 }
 
 type GroupReq struct {
-	ID        *intID.ID `json:"id" example:"0a1b2c3d" swaggertype:"string"`
-	Name      string    `json:"name" example:"Routing"`
-	Color     string    `json:"color" example:"#ffffff"`
-	Interface string    `json:"interface" example:"nwg0"`
-	Enable    *bool     `json:"enable" example:"true" TODO:"Make required after 1.0.0"`
+	ID                 *intID.ID `json:"id" example:"0a1b2c3d" swaggertype:"string"`
+	Name               string    `json:"name" example:"Routing"`
+	Color              string    `json:"color" example:"#ffffff"`
+	Interface          string    `json:"interface" example:"nwg0"`
+	FallbackInterfaces []string  `json:"fallback_interfaces,omitempty"`
+	CheckTarget        string    `json:"check_target,omitempty"`
+	CheckInterval      int       `json:"check_interval,omitempty"`
+	CheckTimeout       float64   `json:"check_timeout,omitempty"`
+	Enable             *bool     `json:"enable" example:"true" TODO:"Make required after 1.0.0"`
 	RulesReq
 }
 
 type GroupRes struct {
-	ID        intID.ID `json:"id" example:"0a1b2c3d" swaggertype:"string"`
-	Name      string   `json:"name" example:"Routing"`
-	Color     string   `json:"color" example:"#ffffff"`
-	Interface string   `json:"interface" example:"nwg0"`
-	Enable    bool     `json:"enable" example:"true"`
+	ID                 intID.ID `json:"id" example:"0a1b2c3d" swaggertype:"string"`
+	Name               string   `json:"name" example:"Routing"`
+	Color              string   `json:"color" example:"#ffffff"`
+	Interface          string   `json:"interface" example:"nwg0"`
+	FallbackInterfaces []string `json:"fallback_interfaces,omitempty"`
+	CheckTarget        string   `json:"check_target,omitempty"`
+	CheckInterval      int      `json:"check_interval,omitempty"`
+	CheckTimeout       float64  `json:"check_timeout,omitempty"`
+	Enable             bool     `json:"enable" example:"true"`
 	RulesRes
 }

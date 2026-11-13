@@ -1,5 +1,6 @@
 <script lang="ts">
   import { Select } from "bits-ui";
+  import type { Snippet } from "svelte";
 
   import { Check, SelectOpen } from "./icons";
 
@@ -9,6 +10,9 @@
     selected?: string;
     onValueChange?: (v: string) => void;
     ariaLabel?: string;
+    trigger?: Snippet;
+    triggerClass?: string;
+    disabled?: boolean;
     [key: string]: any;
   };
 
@@ -17,37 +21,42 @@
     selected = $bindable<string>(),
     onValueChange,
     ariaLabel = "Select",
+    trigger,
+    triggerClass,
+    disabled = false,
     ...rest
   }: Props = $props();
 
   const selected_option = $derived(options.find((o) => o.value === selected));
   const selected_label = $derived(selected_option?.label ?? selected ?? "");
   const selected_description = $derived(selected_option?.description ?? "");
+  const hasDescriptions = $derived(options.some((option) => Boolean(option.description)));
   const missing_selection = $derived(
     Boolean(selected) && !options.some((o) => o.value === selected),
   );
 </script>
 
 <div class="select-wrap" class:missing={missing_selection} {...rest}>
-  <Select.Root type="single" {onValueChange} items={options} bind:value={selected}>
-    <Select.Trigger aria-label={ariaLabel}>
-      <div
-        class="selected"
-        class:has-description={selected_description}
-      >
-        <div class="selected-text">
-          <div class="selected-value">{selected_label}</div>
-          {#if selected_description}
-            <div class="selected-description">{selected_description}</div>
-          {/if}
+  <Select.Root type="single" {onValueChange} {disabled} items={options} bind:value={selected}>
+    <Select.Trigger aria-label={ariaLabel} class={triggerClass}>
+      {#if trigger}
+        {@render trigger()}
+      {:else}
+        <div class="selected" class:has-descriptions={hasDescriptions}>
+          <div class="selected-text">
+            <div class="selected-value">{selected_label}</div>
+            {#if selected_description}
+              <div class="selected-description">{selected_description}</div>
+            {/if}
+          </div>
+          <div class="selected-open" aria-hidden="true">
+            <SelectOpen size={16} />
+          </div>
         </div>
-        <div class="selected-open" aria-hidden="true">
-          <SelectOpen size={16} />
-        </div>
-      </div>
+      {/if}
     </Select.Trigger>
 
-    <Select.Content align="start" sideOffset={4}>
+    <Select.Content align="start" sideOffset={4} aria-label={ariaLabel}>
       {#each options as option}
         <Select.Item value={option.value} label={option.label}>
           {#snippet children({ selected })}
@@ -113,10 +122,10 @@
     border-radius: 0.5rem;
     border: 1px solid var(--bg-light-extra);
     box-shadow: var(--shadow-popover);
-    max-height: 12rem;
+    max-height: min(12rem, var(--bits-select-content-available-height));
     overflow-y: auto;
     width: max-content;
-    min-width: 100%;
+    min-width: var(--bits-select-anchor-width);
     z-index: 10;
   }
 
@@ -125,13 +134,19 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.1rem;
-    padding: 0 0.2rem;
+    padding: 0.15rem 0.35rem;
     border-radius: 0.2rem;
     cursor: default;
     white-space: nowrap;
   }
   :global([data-select-item]:hover) {
     background-color: var(--bg-light-extra);
+  }
+  :global([data-select-item][data-selected]) {
+    background-color: var(--bg-light);
+  }
+  :global([data-select-item][data-selected]:hover) {
+    background-color: var(--bg-light);
   }
 
   .selected {
@@ -148,6 +163,11 @@
     flex-direction: column;
     align-items: end;
     gap: 0.08rem;
+    justify-content: center;
+    height: 1.05em;
+  }
+  .has-descriptions .selected-text {
+    height: 1.85em;
   }
   .selected-value {
     flex: 0 1 auto;
@@ -162,15 +182,19 @@
   .selected-description {
     max-width: 10rem;
     padding-left: 0.3rem;
+    padding-right: 0.2em;
     color: var(--text-2);
     font-size: 0.55em;
     font-style: italic;
+    line-height: 1.2;
+    flex-shrink: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .selected-open {
     width: 16px;
+    flex-shrink: 0;
     height: 16px;
     display: flex;
     align-items: center;
@@ -192,7 +216,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.2rem;
+    gap: 0.55rem;
     padding: 0.1rem;
     width: max-content;
     white-space: nowrap;

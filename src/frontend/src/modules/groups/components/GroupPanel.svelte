@@ -1,17 +1,19 @@
 <script lang="ts">
   import { Collapsible } from "bits-ui";
+  import { GitBranch, Route } from "lucide-svelte";
   import { createEventDispatcher, getContext, tick } from "svelte";
   import { slide } from "svelte/transition";
 
   import Pagination from "../../../components/Pagination.svelte";
   import Button from "../../../components/ui/Button.svelte";
   import DropdownMenu from "../../../components/ui/DropdownMenu.svelte";
-  import Select from "../../../components/ui/Select.svelte";
+  import EditableField from "../../../components/ui/EditableField.svelte";
   import Switch from "../../../components/ui/Switch.svelte";
   import Tooltip from "../../../components/ui/Tooltip.svelte";
-  import { interfaces } from "../../../data/interfaces.svelte";
   import { t } from "../../../data/locale.svelte";
+  import { routingStatus } from "../../../data/routing-status.svelte";
   import { GROUPS_STORE_CONTEXT, type GroupsStore } from "../groups.svelte";
+  import FailoverSettings from "./FailoverSettings.svelte";
   import GroupDuplicateMenu from "./GroupDuplicateMenu.svelte";
   import RuleRow from "./RuleRow.svelte";
 
@@ -28,17 +30,26 @@
     SortDesc,
     SortNeutral,
   } from "../../../components/ui/icons";
+  import { routeIndicator } from "../../../data/route-indicator";
   import { draggable, droppable } from "../../../lib/dnd";
   import { type Rule } from "../../../types";
+  import { copyRulePatternsToClipboard } from "../../../utils/copy-rule-patterns";
   import { defaultRule } from "../../../utils/defaults";
-  import { toast } from "../../../utils/events";
   import { type SortDirection, type SortField } from "../../../utils/rule-sorter";
 
   type Props = {
     group_index: number;
+    selectionActive?: boolean;
+    selected?: boolean;
+    ontoggleSelection?: () => void;
   };
 
-  let { group_index }: Props = $props();
+  let {
+    group_index,
+    selectionActive = false,
+    selected = false,
+    ontoggleSelection,
+  }: Props = $props();
 
   const store = getContext<GroupsStore>(GROUPS_STORE_CONTEXT);
   if (!store) {
@@ -61,47 +72,59 @@
       ? store.getSearchHighlightParts(group.name ?? "", searchQuery)
       : undefined,
   );
-  let hasGroupNameSearchHighlight = $derived(Boolean(groupNameHighlightParts));
   let visibleRuleIndices = $derived(store.visibilityMap.get(group_index));
-  let effectiveOpen = $derived(group ? (store.open_state[group.id] ?? false) : false);
+  let searchManuallyCollapsed = $state(false);
+  let searchAutoExpanded = $derived(
+    searchActive &&
+      store.visibilityMap.has(group_index) &&
+      (Array.isArray(visibleRuleIndices)
+        ? visibleRuleIndices.length > 0
+        : (group?.rules.length ?? 0) > 0),
+  );
+  let effectiveOpen = $derived(
+    group
+      ? searchAutoExpanded
+        ? !searchManuallyCollapsed
+        : (store.open_state[group.id] ?? false)
+      : false,
+  );
   let duplicateConflicts = $derived(group ? store.getDuplicateConflictsForGroup(group.id) : []);
+  let showFailoverSettings = $state(false);
+  let liveRouting = $derived(routingStatus.groups.find((entry) => entry.id === group?.id));
+  let routeView = $derived(routeIndicator(liveRouting, group?.enable ?? false));
+  let activeBackup = $derived(
+    Boolean(
+      group?.enable &&
+      liveRouting?.applied &&
+      liveRouting.active_interface !== group.interface &&
+      (group.fallback_interfaces ?? []).includes(liveRouting.active_interface) &&
+      routeView.kind === "healthy",
+    ),
+  );
+  let explicitBlackhole = $derived(
+    group?.interface === "blackhole" &&
+      group.enable &&
+      liveRouting?.applied &&
+      liveRouting.active_interface === "blackhole",
+  );
+
+  $effect(() => {
+    // Search expansion is temporary; a changed query starts with results open.
+    searchQuery;
+    searchManuallyCollapsed = false;
+  });
 
   function toggleOpen() {
     if (!group) return;
+    if (searchAutoExpanded) {
+      searchManuallyCollapsed = effectiveOpen;
+      return;
+    }
     store.open_state[group.id] = !effectiveOpen;
   }
 
-  async function copyRulePatterns() {
-    if (!group) return;
-
-    const patterns = group.rules.map((rule) => rule.rule.trim()).filter(Boolean);
-
-    if (patterns.length === 0) {
-      toast.error(t("Nothing to copy"));
-      return;
-    }
-
-    const textarea = document.createElement("textarea");
-
-    try {
-      textarea.value = patterns.join("\n");
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-
-      document.body.appendChild(textarea);
-      textarea.select();
-
-      if (!document.execCommand("copy")) {
-        throw new Error("Copy command failed");
-      }
-
-      toast.success(t("Copied to clipboard"));
-    } catch (e) {
-      console.error("Failed to copy to clipboard:", e);
-      toast.error(t("Failed to copy"));
-    } finally {
-      textarea.remove();
-    }
+  function copyRulePatterns() {
+    if (group) copyRulePatternsToClipboard(group.rules);
   }
 
   type GroupDnD = {
@@ -345,13 +368,27 @@
         use:droppable={{
           data: { rule_id: "", rule_index: 0, group_id: group.id, group_index },
           scope: "rule",
-          canDrop: (src) => src.group_id === group.id,
+          canDrop: (src) => src.group_id !== group.id || src.rule_index !== 0,
+          onDrop: (source) =>
+            store.changeRuleIndex(source.group_index, source.rule_index, group_index, 0),
         }}
       >
         <div class="group-left">
-          <label class="group-color" style="background: {group.color}">
-            <input type="color" bind:value={group.color} />
-          </label>
+          {#if selectionActive}
+            <button
+              class="group-color"
+              style="background: {group.color}"
+              type="button"
+              aria-label={`${t("Toggle selection")}: ${group.name}`}
+              aria-pressed={selected}
+              title={t(selected ? "Deselect item" : "Select item")}
+              onclick={ontoggleSelection}
+            ></button>
+          {:else}
+            <label class="group-color" style="background: {group.color}">
+              <input type="color" bind:value={group.color} />
+            </label>
+          {/if}
 
           <div class="group-grip" title={t("Drag Group")}>
             <Grip />
@@ -359,29 +396,13 @@
 
           <div class="group-name-wrap">
             <div class="group-name-field">
-              <input
-                type="text"
+              <EditableField
+                kind="group"
                 placeholder={t("group name...")}
-                class="group-name"
-                class:search-text-hidden={hasGroupNameSearchHighlight}
-                class:has-warning={duplicateConflicts.length > 0}
                 bind:value={group.name}
+                highlightParts={groupNameHighlightParts}
+                warning={duplicateConflicts.length > 0}
               />
-              {#if hasGroupNameSearchHighlight && groupNameHighlightParts}
-                <div
-                  class="search-highlight-overlay group-name-search-overlay"
-                  class:has-warning={duplicateConflicts.length > 0}
-                  aria-hidden="true"
-                >
-                  {#each groupNameHighlightParts as part}
-                    {#if part.matched}
-                      <mark>{part.text}</mark>
-                    {:else}
-                      {part.text}
-                    {/if}
-                  {/each}
-                </div>
-              {/if}
             </div>
             {#if duplicateConflicts.length > 0}
               <GroupDuplicateMenu
@@ -394,17 +415,46 @@
         </div>
 
         <div class="group-actions">
-          <Select
-            options={interfaces.list.map((item) => ({
-              value: item.id,
-              label: item.id,
-              description: item.name,
-            }))}
-            bind:selected={group.interface}
-          />
-
+          <span
+            class="route-status"
+            class:route-healthy={routeView.kind === "healthy"}
+            class:route-degraded={routeView.kind === "error"}
+            class:route-neutral={routeView.kind === "pending" || routeView.kind === "disabled"}
+            class:route-blackhole={explicitBlackhole}
+            title={activeBackup
+              ? t("Backup interface active")
+              : routeView.kind === "error"
+                ? t(routeView.label)
+                : liveRouting
+                  ? t("Current choice: {interface}", {
+                      interface: liveRouting.active_interface || "—",
+                    })
+                  : t("Waiting for routing status")}
+            aria-label={activeBackup
+              ? `${t("Backup interface active")}: ${liveRouting?.active_interface}`
+              : explicitBlackhole
+                ? "blackhole"
+                : t(routeView.label)}
+          >
+            {#if activeBackup}
+              <GitBranch class="route-backup-icon" size={14} aria-hidden="true" />
+            {/if}
+            {explicitBlackhole ? "blackhole" : t(routeView.label)}
+          </span>
           <Tooltip value={t(group.enable ? "Disable Group" : "Enable Group")}>
             <Switch class="enable-group" bind:checked={group.enable} />
+          </Tooltip>
+
+          <Tooltip value={t("Configure interfaces")}>
+            <Button
+              small
+              class="failover-action"
+              aria-label={t("Configure interfaces")}
+              aria-expanded={showFailoverSettings}
+              onclick={() => (showFailoverSettings = !showFailoverSettings)}
+            >
+              <Route size={20} />
+            </Button>
           </Tooltip>
 
           {#if is_desktop}
@@ -484,6 +534,10 @@
         </div>
       </div>
 
+      {#if showFailoverSettings}
+        <FailoverSettings {group} status={liveRouting} onChanged={() => store.markDataRevision()} />
+      {/if}
+
       <Collapsible.Content>
         <div transition:slide={searchActive ? { duration: 0 } : {}}>
           {#if totalRulesCount > 0}
@@ -555,6 +609,23 @@
 {/if}
 
 <style>
+  .group-actions :global(button.failover-action[aria-expanded="true"]) {
+    color: var(--accent);
+    background: var(--bg-dark);
+    border-color: var(--bg-light-extra);
+  }
+  .route-status {
+    color: var(--green);
+    font-size: 0.78rem;
+    font-weight: 600;
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .route-status.route-degraded {
+    color: var(--red);
+  }
   .group {
     & {
       background-color: var(--bg-medium);
@@ -572,22 +643,19 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      box-sizing: border-box;
+      height: 3.3rem;
       padding: 0.5rem;
       border-radius: 0.5rem;
       background-color: var(--bg-light);
       position: relative;
-    }
-
-    &:global(.dragover) {
-      outline: 1px solid var(--accent);
-      box-shadow: inset 0 0 5px 0 var(--accent);
     }
   }
 
   .group-left {
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: 0.2rem;
     flex: 1 1 auto;
     min-width: 0;
   }
@@ -595,6 +663,8 @@
   .group-color {
     & {
       display: inline-block;
+      padding: 0;
+      border: 0;
       width: 2rem;
       height: 100%;
       border-top-left-radius: calc(0.5rem - 1px);
@@ -608,6 +678,11 @@
 
     & input {
       margin-left: 0.5rem;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: -2px;
     }
   }
 
@@ -626,37 +701,11 @@
     color: var(--text);
   }
 
-  .group-name {
-    & {
-      border: none;
-      background-color: transparent;
-      font-size: 1.3rem;
-      font-weight: 600;
-      font-family: var(--font);
-      color: var(--text);
-      border-bottom: 1px solid transparent;
-      position: relative;
-      top: 0.1rem;
-      min-width: 0;
-      width: 100%;
-      box-sizing: border-box;
-    }
-
-    &.has-warning {
-      padding-right: 2.2rem;
-    }
-
-    &:focus-visible {
-      outline: none;
-      border-bottom: 1px solid var(--accent);
-    }
-  }
-
   .group-name-wrap {
     display: flex;
     position: relative;
     align-items: center;
-    margin-left: 0.4rem;
+    margin-left: 0;
     min-width: 0;
     flex: 1 1 auto;
   }
@@ -673,70 +722,65 @@
 
   .group-name-field {
     position: relative;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     min-width: 0;
-    flex: 1 1 auto;
-  }
-
-  .search-highlight-overlay {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    pointer-events: none;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: pre;
-    color: var(--text);
-    padding: 0;
-    margin: 0;
-    box-sizing: border-box;
-  }
-
-  .search-highlight-overlay.has-warning {
-    padding-right: 2.2rem;
-  }
-
-  .group-name-search-overlay {
-    transform: translateY(0.1rem);
-    font: 600 1.3rem var(--font);
-  }
-
-  .search-highlight-overlay mark {
-    background: color-mix(in oklab, var(--yellow) 34%, transparent);
-    box-shadow:
-      inset 0 0 0 1px color-mix(in oklab, var(--yellow) 62%, transparent),
-      0 1px 0 color-mix(in oklab, var(--yellow) 30%, transparent);
-    color: inherit;
-    border-radius: 0.22rem;
-  }
-
-  .group-name.search-text-hidden {
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-    caret-color: var(--text);
-  }
-
-  .group-name.search-text-hidden:focus,
-  .group-name.search-text-hidden:focus-visible {
-    color: var(--text);
-    -webkit-text-fill-color: var(--text);
-  }
-
-  .group-name:focus + .search-highlight-overlay,
-  .group-name:focus-visible + .search-highlight-overlay {
-    display: none;
+    flex: 0 1 auto;
   }
 
   .group-actions {
     & {
-      display: flex;
+      display: grid;
+      grid-template-columns: 12rem 2rem repeat(6, 2.2rem);
       align-items: center;
-      justify-content: center;
-      gap: 0.2rem;
+      justify-content: end;
+      flex: 0 0 auto;
+      gap: 0.3rem;
     }
-    &:global([data-switch-root]) {
-      margin: 0 0.3rem;
-    }
+  }
+
+  .group-actions .route-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    justify-self: end;
+    text-align: right;
+    margin-right: 0.45rem;
+    min-width: 0;
+    font-weight: 600;
+    font-size: 0.84rem;
+  }
+
+  .group-actions .route-healthy {
+    color: var(--green);
+  }
+
+  .group-actions .route-degraded {
+    color: var(--red);
+  }
+
+  .group-actions .route-neutral {
+    color: var(--text-2);
+  }
+
+  .group-actions .route-blackhole {
+    color: var(--orange);
+  }
+
+  .group-actions .route-status :global(.route-backup-icon) {
+    flex: 0 0 auto;
+    color: var(--accent);
+  }
+
+  .group-actions :global([role="tooltip"] > button:not([data-switch-root])),
+  .group-actions :global([data-collapsible-trigger]) {
+    box-sizing: border-box;
+    width: 2.2rem;
+    height: 2.2rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .group-rules-header {
@@ -821,12 +865,13 @@
     cursor: pointer;
   }
 
-  @media (max-width: 700px) {
+  @media (max-width: 850px) {
     .group-header {
       display: flex;
       flex-direction: column;
       align-items: start;
       justify-content: center;
+      height: auto;
       padding: 0.4rem 0.5rem;
     }
 
@@ -845,21 +890,19 @@
     }
 
     .group-actions {
+      display: flex;
       width: calc(100% - 2rem);
-      justify-content: stretch;
+      min-width: 0;
+      flex-wrap: wrap;
+      justify-content: flex-start;
       gap: 0.25rem;
       margin-left: 2rem;
     }
 
-    :global(.group-actions > *:nth-child(1)) {
-      margin-right: auto;
-      width: 150px;
-      min-width: 140px;
-      flex: 1 1 auto;
-    }
-
-    :global(.group-actions > *:nth-child(2)) {
-      margin-left: auto;
+    .group-actions .route-status {
+      margin-right: 0.45rem;
+      flex: 0 1 auto;
+      text-align: right;
     }
 
     .group-rules-header {

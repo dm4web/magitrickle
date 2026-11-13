@@ -174,6 +174,25 @@ app.delete(`${API_BASE}/subscriptions/:id`, async (c) => {
 });
 
 app.get(`${API_BASE}/system/interfaces`, (c) => c.json(INTERFACES));
+app.get(`${API_BASE}/system/routing-status`, (c) => c.json({
+  groups: DATA.groups.map((group: { id: string; interface: string; enable: boolean; fallback_interfaces?: string[]; check_target?: string }) => ({
+    id: group.id,
+    enabled: group.enable,
+    primary_interface: group.interface,
+    active_interface: group.interface,
+    selected_interface: group.interface,
+    applied: true,
+    check_target: group.check_target,
+    failover: (group.fallback_interfaces?.length ?? 0) > 0,
+    interfaces: [group.interface, ...(group.fallback_interfaces ?? [])].map((name) => ({
+      interface: name,
+      checked: true,
+      healthy: true,
+      method: group.check_target ? "tcp" : "link",
+      detail: group.check_target ? "TCP probe passed (mock)" : "link up (mock)",
+    })),
+  })),
+}));
 app.get(`${API_BASE}/logs`, async (c) => {
   return streamSSE(c, async (stream) => {
     while (true) {

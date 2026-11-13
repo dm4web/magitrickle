@@ -1,0 +1,79 @@
+{
+  "groups": [
+    {
+      "id": "a1b2c3d4",
+      "name": "Медиасервисы",
+      "color": "#7aa2f7",
+      "interface": "nwg0",
+      "fallback_interfaces": ["eth1", "wg0"],
+      "check_target": "1.1.1.1:443",
+      "enable": true,
+      "rules": [
+        {
+          "id": "c1000001",
+          "name": "YouTube",
+          "rule": "youtube.com",
+          "type": "domain",
+          "enable": true
+        },
+        {
+          "id": "c1000002",
+          "name": "Netflix",
+          "rule": "netflix.com",
+          "type": "domain",
+          "enable": true
+        },
+        {
+          "id": "c1000003",
+          "name": "Twitch",
+          "rule": "twitch.tv",
+          "type": "domain",
+          "enable": true
+        }
+      ]
+    },
+    {
+      "id": "b1c2d3e4",
+      "name": "Рабочие ресурсы",
+      "color": "#9ece6a",
+      "interface": "eth1",
+      "fallback_interfaces": ["wg0"],
+      "check_target": "",
+      "enable": true,
+      "rules": [
+        {
+          "id": "c2000001",
+          "name": "GitHub",
+          "rule": "github.com",
+          "type": "domain",
+          "enable": true
+        },
+        {
+          "id": "c2000002",
+          "name": "GitLab",
+          "rule": "gitlab.com",
+          "type": "domain",
+          "enable": true
+        }
+      ]
+    },
+    {
+      "id": "c1d2e3f4",
+      "name": "Локальная сеть",
+      "color": "#e0af68",
+      "interface": "eth1",
+      "fallback_interfaces": [],
+      "check_target": "",
+      "enable": true,
+      "rules": [
+        {
+          "id": "c3000001",
+          "name": "Локальные адреса",
+          "rule": "192.168.1.0/24",
+          "type": "subnet",
+          "enable": true
+        }
+      ]
+    }
+  ]
+}

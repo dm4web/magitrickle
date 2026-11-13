@@ -20,6 +20,7 @@ func List(showAll bool) ([]models.InterfaceInfo, error) {
 	if !showAll {
 		networkInterfaces = filterManaged(networkInterfaces)
 	}
+	networkInterfaces = filterUp(networkInterfaces)
 
 	friendlyNames, err := routerAPI.GetIfaceAliases()
 	if err != nil {
@@ -46,5 +47,15 @@ func filterManaged(interfaces []net.Interface) []net.Interface {
 		filtered = append(filtered, iface)
 	}
 
+	return filtered
+}
+
+func filterUp(interfaces []net.Interface) []net.Interface {
+	filtered := make([]net.Interface, 0, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp != 0 {
+			filtered = append(filtered, iface)
+		}
+	}
 	return filtered
 }

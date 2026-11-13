@@ -1,6 +1,8 @@
 name: Checking
 
 on:
+  push:
+    branches: [main]
   pull_request:
     paths-ignore:
       - '**.md'
@@ -24,6 +26,7 @@ jobs:
             goarch: arm64
           - goos: linux
             goarch: arm
+            goarm: '7'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,9 +34,10 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version-file: src/backend/go.mod
+          cache-dependency-path: src/backend/go.sum
 
       - name: Finding suspicious constructs
         working-directory: ./src/backend
@@ -51,18 +55,20 @@ jobs:
           fetch-tags: true
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.23'
+          go-version-file: src/backend/go.mod
+          cache-dependency-path: src/backend/go.sum
 
       - name: Backend tests
         working-directory: ./src/backend
         run: |
           GOOS=linux go test ./...
+          GOOS=linux go test -tags "entware entware_kn" ./...
 
   test_frontend:
     name: Frontend testing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -76,13 +82,21 @@ jobs:
           node-version: 24
 
       - name: Set up Deno
-        uses: denoland/setup-deno@v1
+        uses: denoland/setup-deno@v2
         with:
-          deno-version: v1.x
+          deno-version: v2.x
 
       - name: Install frontend dependencies
         working-directory: ./src/frontend
-        run: npm install
+        run: npm ci --no-audit --no-fund
+
+      - name: Frontend type check
+        working-directory: ./src/frontend
+        run: npm run check
+
+      - name: Frontend production build
+        working-directory: ./src/frontend
+        run: npm run build
 
       - name: Install Playwright browsers
         working-directory: ./src/frontend
@@ -95,3 +109,78 @@ jobs:
       - name: Frontend e2e tests
         working-directory: ./src/frontend
         run: npm run test:e2e
+
+      - name: Store tested static frontend for Keenetic packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: keenetic-test-frontend
+          path: src/frontend/build/
+          if-no-files-found: error
+          retention-days: 7
+
+  test_netns:
+    name: Isolated Linux failover lifecycle and interface-bound TCP
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/backend/go.mod
+          cache-dependency-path: src/backend/go.sum
+      - name: Compile isolated network namespace tests
+        working-directory: src/backend
+        run: go test -c -tags netns_test -o "$RUNNER_TEMP/magitrickle-netns.test" .
+      - name: Run in private network namespace
+        run: sudo ./e2e/test-failover-netns.sh "$RUNNER_TEMP/magitrickle-netns.test"
+
+  test_keenetic_packages:
+    name: Keenetic IPK - ${{ matrix.target }}
+    needs: [test_backend, test_frontend]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - aarch64-3.10_kn
+          - mips-3.4_kn
+          - mipsel-3.4_kn
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/backend/go.mod
+          cache-dependency-path: src/backend/go.sum
+      - uses: actions/download-artifact@v4
+        with:
+          name: keenetic-test-frontend
+          path: src/frontend/build
+      - name: Install Linux IPK packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot upx-ucl
+          command -v upx || sudo ln -s "$(command -v upx-ucl)" /usr/local/bin/upx
+      - name: Build genuine Keenetic Entware IPK
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          cp "config/entware/$TARGET.config" .config
+          make FRONTEND_PREBUILT=1 PKG_VERSION=0 package
+      - name: Check IPK without executing installation scripts
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          pkg="$(find .build -maxdepth 1 -type f -name "magitrickle_*_entware_$TARGET.ipk" -print -quit)"
+          test -n "$pkg"
+          test -s "$pkg"
+          python3 e2e/verify-keenetic-ipk.py --target "$TARGET" --version 0 "$pkg"
+          sha256sum "$pkg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: keenetic-test-ipk-${{ matrix.target }}
+          path: .build/magitrickle_*.ipk
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7

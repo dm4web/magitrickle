@@ -23,8 +23,8 @@ test.describe("Import/Export", () => {
 
     // Trigger download
     const downloadPromise = page.waitForEvent("download");
-    // Click Export button (3rd button in controls)
-    await page.locator(".group-controls-actions button").nth(2).click();
+    // Select the action by its label; Save + Auto adds another toolbar button.
+    await page.locator('[data-value="Export Config"] button').click();
 
     const download = await downloadPromise;
     expect(download.suggestedFilename()).toBe("config.mtrickle");
@@ -51,8 +51,7 @@ test.describe("Import/Export", () => {
 
     // Handle file chooser
     const fileChooserPromise = page.waitForEvent("filechooser");
-    // Click Import button (2nd button)
-    await page.locator(".group-controls-actions button").nth(1).click();
+    await page.locator('[data-value="Import Config"] button').click();
 
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(filePath);
