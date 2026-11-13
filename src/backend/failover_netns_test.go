@@ -7,11 +7,17 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"magitrickle/models"
+	"magitrickle/routing"
 	"magitrickle/utils/intID"
+	"magitrickle/utils/netfilterTools"
+	"magitrickle/utils/recordsCache"
+
+	"github.com/vishvananda/netlink"
 )
 
 // This test runs ONLY inside the ephemeral namespace created by
@@ -22,11 +28,133 @@ func requireTestNamespace(t *testing.T) {
 	if os.Getenv("MAGITRICKLE_NETNS_TEST") != "isolated" {
 		t.Fatal("refusing to run without isolated namespace marker")
 	}
+	self, errSelf := os.Readlink("/proc/self/ns/net")
+	init, errInit := os.Readlink("/proc/1/ns/net")
+	if errSelf != nil || errInit != nil || self == init {
+		t.Fatal("refusing to run netfilter tests in the host network namespace")
+	}
 	for _, name := range []string{"lo", "mtpri", "mtbak"} {
 		if _, err := net.InterfaceByName(name); err != nil {
 			t.Fatalf("missing isolated test interface %q: %v", name, err)
 		}
 	}
+}
+
+func kernelCommand(t *testing.T, name string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command(name, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("%s %v: %v: %s", name, args, err, out)
+	}
+	return string(out)
+}
+
+func assertKernelInterface(t *testing.T, want string) {
+	t.Helper()
+	routes := kernelCommand(t, "ip", "-4", "route", "show", "table", "all")
+	if want == "blackhole" {
+		if !strings.Contains(routes, "blackhole default") {
+			t.Fatalf("no kernel blackhole route after failover: %s", routes)
+		}
+		return
+	}
+	if !strings.Contains(routes, "default dev "+want+" ") {
+		t.Fatalf("kernel route via %q missing: %s", want, routes)
+	}
+}
+
+// Unlike TestNetnsFailoverLifecycle, this exercises the real netlink,
+// ipset, iptables and policy-route implementations in a disposable Linux
+// network namespace. No host or Keenetic routing state is touched.
+func TestNetnsRealNetfilterFailover(t *testing.T) {
+	requireTestNamespace(t)
+
+	helper, err := netfilterTools.New("MTIT_", "mtit_", false, true, 14000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, patch := range []struct{ table, chain string }{
+		{"filter", "FORWARD"},
+		{"mangle", "PREROUTING"},
+		{"nat", "POSTROUTING"},
+	} {
+		helper.IPTables4.RegisterChainPatch(patch.table, patch.chain)
+	}
+	router := helper.Router("ROUTING")
+	if err := router.Enable(); err != nil {
+		t.Fatalf("enable real netfilter router: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := router.Disable(); err != nil {
+			t.Errorf("disable real netfilter router: %v", err)
+		}
+	})
+
+	a := &App{}
+	a.routing.Store(routing.New(routing.FromNetfilter(router), recordsCache.New()))
+	group := &models.Group{
+		ID:                 intID.ID{11},
+		Name:               "real-kernel-failover",
+		Interface:          "mtpri",
+		FallbackInterfaces: []string{"mtbak"},
+		Enable:             true,
+		Rules: []*models.Rule{{
+			ID: intID.ID{12}, Type: models.RuleTypeSubnet, Rule: "198.51.100.0/24", Enable: true,
+		}},
+	}
+	if err := a.AddGroup(group); err != nil {
+		t.Fatalf("create real netfilter test group: %v", err)
+	}
+	t.Cleanup(func() {
+		testLink(t, "mtpri", true)
+		testLink(t, "mtbak", true)
+	})
+
+	ctx := context.Background()
+	refreshAfterInterval(a, ctx)
+	assertApplied(t, a, "mtpri")
+	assertKernelInterface(t, "mtpri")
+
+	iptablesDump := kernelCommand(t, "iptables-save", "-t", "mangle")
+	if !strings.Contains(iptablesDump, "MTIT_ROUTING") {
+		t.Fatalf("real iptables routing dispatcher is missing: %s", iptablesDump)
+	}
+	ipsets, err := netlink.IpsetListAll()
+	if err != nil {
+		t.Fatalf("list real ipsets: %v", err)
+	}
+	hasTestSet := false
+	for _, set := range ipsets {
+		if strings.HasPrefix(set.SetName, "mtit_") {
+			hasTestSet = true
+			break
+		}
+	}
+	if !hasTestSet {
+		t.Fatal("real netfilter did not create a test ipset")
+	}
+
+	testLink(t, "mtpri", false)
+	refreshAfterInterval(a, ctx)
+	assertApplied(t, a, "mtpri") // first failure is suppressed
+	refreshAfterInterval(a, ctx)
+	assertApplied(t, a, "mtbak")
+	assertKernelInterface(t, "mtbak")
+
+	testLink(t, "mtbak", false)
+	refreshAfterInterval(a, ctx)
+	assertApplied(t, a, "mtbak")
+	refreshAfterInterval(a, ctx)
+	assertApplied(t, a, "blackhole")
+	assertKernelInterface(t, "blackhole")
+
+	testLink(t, "mtpri", true)
+	for i := 0; i < failoverRecoverSamples; i++ {
+		refreshAfterInterval(a, ctx)
+	}
+	assertApplied(t, a, "mtpri")
+	assertKernelInterface(t, "mtpri")
 }
 
 func testLink(t *testing.T, iface string, up bool) {
