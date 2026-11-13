@@ -258,5 +258,5 @@ jobs:
             gh release create "$RELEASE_TAG" release-assets/* \
               --repo "$GH_REPO" --verify-tag \
               --title "MagiTrickle Neo $RELEASE_TAG" \
-              --notes "MagiTrickle Neo $RELEASE_TAG. Keenetic Entware packages and SHA256SUMS."
+              --notes ""
           fi
