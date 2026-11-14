@@ -20,6 +20,15 @@ test.describe("Header Settings", () => {
     await expect(page.locator(".header-settings .version-text")).toHaveCount(0);
   });
 
+  test("restores WebUI when saved browser state is malformed", async ({ page }) => {
+    for (const key of ["auth", "locale", "active_tab"]) {
+      await page.evaluate((name) => localStorage.setItem(name, "null"), key);
+      await page.reload();
+      await expect(page.locator(".app-brand")).toBeVisible();
+      await expect(page.getByRole("tab", { name: /groups|группы/i })).toBeVisible();
+    }
+  });
+
   test("shows the running Neo version in green and an upgrade arrow only when newer", async ({ page }) => {
     await page.route("**/system/update/check", (route) =>
       route.fulfill({

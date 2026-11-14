@@ -88,6 +88,7 @@ func SetupHTTP(a app.Main, errChan chan error) (*http.Server, error) {
 		switch strings.ToLower(ext) {
 		case ".html":
 			w.Header().Set("Content-Type", "text/html")
+			w.Header().Set("Cache-Control", "no-store")
 		case ".css":
 			w.Header().Set("Content-Type", "text/css")
 		case ".js":
