@@ -82,7 +82,12 @@ def verify(path: Path, target: str, version: str | None = None) -> None:
             init_script = data.extractfile("./opt/etc/init.d/S99magitrickle").read().decode()
             ensure("/opt/sbin/start-stop-daemon" in init_script, "service must use a detached launcher")
             ensure('"$SSD" -S -b -x "$PROG"' in init_script, "service must survive SSH disconnect")
-            ensure('"$SSD" -K -x "$PROG"' in init_script, "service must stop only MagiTrickle")
+            ensure('"$SSD" -K -n "$NAME"' in init_script, "service must stop even after binary replacement")
+            postinst = control.extractfile("./postinst").read().decode()
+            ensure('"$RESTART_SERVICE_ON_UPDATE" = "true"' in postinst,
+                   "package must honor restart on upgrade")
+            ensure('/opt/etc/init.d/S99magitrickle restart || exit 1' in postinst,
+                   "package must restart a daemon left running by the previous version")
 
             frontend = "./opt/usr/share/magitrickle/skins/default/_app/"
             assets = [n for n in payload if n.startswith(frontend) and payload[n].isfile()]

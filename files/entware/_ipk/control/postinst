@@ -1,12 +1,19 @@
 #!/bin/sh
 
 START_SERVICE_ON_INSTALL=true
+RESTART_SERVICE_ON_UPDATE=true
 
 CONFIG_FILE=/opt/etc/config/magitrickle.conf
 [ -f "$CONFIG_FILE" ] && . "$CONFIG_FILE"
 
 if [ "$START_SERVICE_ON_INSTALL" = "true" ]; then
-	/opt/etc/init.d/S99magitrickle start
+	if [ "$RESTART_SERVICE_ON_UPDATE" = "true" ]; then
+		# Also replace daemons left running from pre-Neo packages. Their
+		# original executable may have been unlinked during the upgrade.
+		/opt/etc/init.d/S99magitrickle restart || exit 1
+	else
+		/opt/etc/init.d/S99magitrickle start || exit 1
+	fi
 fi
 
 exit 0
